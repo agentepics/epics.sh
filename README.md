@@ -1,242 +1,132 @@
 # epics.sh
 
-`epics.sh` is a website and Go CLI for publishing, discovering, installing, and
-running Agent Epics across AI coding agent CLIs.
+`epics.sh` is the umbrella repo for two related products:
 
-The goal is simple:
+- the `epics.sh` website
+- the `epics` Go CLI
 
-- make Epics easy to browse and trust as reusable packages
-- make Epics easy to install into real agent environments
-- make Epic support portable across host CLIs with different capabilities
+The goal is to make Agent Epics easy to publish, discover, install, and run
+across AI coding agent CLIs such as Claude Code, Codex, Gemini CLI, and
+OpenCode.
 
-This project is informed by the Agent Epics reference work in the sibling
-`agentepics` repo, where an Epic is a valid `SKILL.md` package plus an
-`EPIC.md` file and optional runtime surfaces such as `plans/`, `state/`,
-`log/`, `hooks/`, `cron.d/`, and `policy.yml`.
+## Scope
 
-## Product Vision
+This repo is intended to hold:
 
-`epics.sh` has two products in one repo:
+- the public website and docs
+- the Go CLI
+- the Git-backed Epic registry
+- shared schemas and adapter capability metadata
+- research and planning docs that drive implementation
 
-1. A public website for the Epic directory, documentation, and install flows.
-2. A Go CLI that bridges Epic packages into host agents such as Claude Code,
-   Gemini CLI, OpenCode, Codex, and generic shell-driven agents.
+The Epic model itself is informed by the sibling `agentepics` reference work,
+where an Epic is a valid `SKILL.md` package plus an `EPIC.md` file and optional
+runtime surfaces such as `plans/`, `state/`, `log/`, `hooks/`, `cron.d/`, and
+`policy.yml`.
 
-The website should answer:
-
-- What is an Epic?
-- Which Epics exist?
-- Is this Epic trustworthy and maintained?
-- How do I install it into my agent?
-- What level of support does my agent actually have?
-
-The CLI should answer:
-
-- How do I install an Epic into this workspace?
-- How do I validate that an Epic is well-formed?
-- How do I resume or inspect an Epic safely?
-- How do I wire Epic lifecycle helpers into a host CLI?
-
-An explicit objective for the Claude adapter is:
-
-- package the `epics` CLI as an official Claude Code plugin and target Claude's
-  plugin marketplace as a supported distribution path
-
-## Core Principles
-
-### 1. Spec first
-
-`epics.sh` should implement the Agent Epic model, not redefine it. The CLI is a
-convenience layer for packaging, validation, resumption, and host integration.
-
-### 2. Portable where possible
-
-Every host CLI exposes different extension points. The product should use a
-capability model, not pretend every integration is equal.
-
-### 3. Static by default, dynamic where needed
-
-The site should launch from a registry stored in-repo as versioned metadata.
-Search, filters, detail pages, manifests, and install snippets can all be
-generated from that source of truth. Dynamic submission workflows can come
-later.
-
-### 4. File-first registry
-
-Epics are files. The directory should treat each listing as a package with
-human docs plus machine-readable metadata and install manifests.
-
-### 5. Honest support matrix
-
-The CLI should clearly distinguish:
-
-- full integration
-- partial integration
-- install-only support
-- unsupported runtime features
-
-## Support Model
-
-The initial host support model should be explicit:
-
-| Host CLI | Initial target | Notes |
-|---|---|---|
-| Claude Code | Strong support | Best first integration target. Support should include an official Claude Code plugin packaging path and marketplace-ready adapter. |
-| Gemini CLI | Strong support | Similar hook model to Claude; good second target. |
-| OpenCode | Adapter support | Plugin-driven model needs a dedicated adapter path. |
-| Codex | Partial support | Install, validate, resume, and notify-based helpers are realistic today; full hooks depend on future Codex capabilities. |
-| Generic CLI | Baseline support | Shell-based install/export flows for any tool that can read files and run commands. |
-
-This matters because "supports Epics" can mean different things:
-
-- can discover and install an Epic
-- can load Epic context into a session
-- can safely update state, plans, and logs
-- can dispatch hooks or recurring jobs
-- can enforce policy at runtime
-
-## Planned Website
-
-The website should ship as a content and registry product first.
-
-Core pages:
-
-- home page explaining Epics and the portability story
-- directory index with filtering by host support, category, maturity, and tags
-- Epic detail pages with screenshots, README excerpts, install commands, and
-  compatibility notes
-- docs pages for the Epic model and CLI usage
-- submit or publish guidance for Epic authors
-
-Core website capabilities:
-
-- registry-backed static generation
-- generated JSON index for client-side search
-- install snippets per host CLI
-- versioned Epic manifests
-- trust signals such as version, maintainer, last updated date, and validation
-  status
-
-## Planned CLI
-
-The Go CLI should be small, composable, and safe around Epic files.
-
-Initial command surface:
-
-- `epics init`
-- `epics validate`
-- `epics install`
-- `epics remove`
-- `epics list`
-- `epics info`
-- `epics resume`
-- `epics export-context`
-- `epics host setup <host>`
-- `epics doctor`
-
-Second-wave commands:
-
-- `epics state get`
-- `epics state set`
-- `epics plan list`
-- `epics plan current`
-- `epics plan create`
-- `epics log recent`
-- `epics log create`
-- `epics hooks fire`
-
-Design constraints:
-
-- preserve unknown fields when editing state
-- honor `state/core.json` precedence over `state.json`
-- avoid silent downgrades of runtime features
-- emit machine-readable output for automation
-- keep host adapters isolated behind clear interfaces
-
-Claude-specific objective:
-
-- the Claude adapter should be shippable both as generated workspace setup and
-  as a real Claude Code plugin distribution
-
-## Repository Shape
-
-This repo is set up as a small monorepo:
+## Repository Layout
 
 ```text
 .
 ├── README.md
+├── AGENTS.md
+├── CLAUDE.md
 ├── go.mod
 ├── apps/
-│   └── web/              # website and docs
+│   └── web/                  # website app
 ├── cmd/
-│   └── epics/            # Go CLI entrypoint
-├── internal/             # Go packages for registry, manifests, hosts, validation
+│   └── epics/                # Go CLI entrypoint
+├── internal/                 # shared Go packages
 ├── registry/
-│   ├── epics/            # one folder per listed Epic
-│   └── schemas/          # metadata and manifest schemas
-├── docs/                 # project docs, not hosted Epic docs
-└── examples/             # sample Epic packages and host setups
+│   ├── epics/                # registry entries
+│   └── schemas/              # metadata and manifest schemas
+├── examples/                 # examples and fixtures
+└── docs/
+    ├── planning/
+    ├── architecture/
+    ├── specification/
+    ├── research/
+    └── adapters/
 ```
 
-Planning and research docs live under `docs/`.
+## Product Direction
 
-## Recommended Implementation Approach
+The current direction is:
 
-### Website stack
+- one umbrella repo
+- one shared registry and schema source of truth
+- host-neutral Epic packaging
+- host-specific adapters generated around the `epics` CLI
 
-Use `Next.js` with TypeScript and MDX.
+Important explicit objective:
 
-Reasons:
+- the Claude adapter should be shippable as an official Claude Code plugin and
+  be suitable for Claude's plugin marketplace
 
-- handles marketing pages, docs, and directory pages in one app
-- can statically generate most pages from the registry
-- can expose API routes later for submission, manifests, and search if needed
-- makes install snippets, compatibility tables, and registry metadata easy to
-  render from typed content
+## Host Strategy
 
-### CLI stack
+Initial target posture:
 
-Use Go for the `epics` binary.
+| Host | Current stance |
+|---|---|
+| Claude Code | strongest first integration target |
+| Gemini CLI | strong second integration target |
+| OpenCode | dedicated adapter target |
+| Codex CLI | partial lifecycle support, strong CLI/MCP target |
+| Generic shell-driven agents | baseline support |
 
-Reasons:
+The key rule is to use a capability model, not assume every host supports the
+same runtime semantics.
 
-- single static binary distribution
-- easy cross-platform releases
-- good fit for filesystem-heavy tooling and config generation
-- straightforward JSON, YAML, and TOML handling for host integrations
+## Current Status
 
-### Registry model
+This repo is still in the planning and scaffold stage.
 
-Start with a Git-backed registry in this repo.
+Implemented so far:
 
-Each listed Epic should have:
+- repo scaffold
+- monorepo directory structure
+- planning docs
+- daemon/runtime design notes
+- adapter research docs
 
-- metadata file
-- manifest for install targets
-- markdown content for the directory page
-- optional screenshots or assets
-- validation output generated in CI
+Not implemented yet:
+
+- working website
+- working `epics` CLI beyond a stub
+- registry schemas
+- host adapter code
+- CI/release automation
+
+## Docs Map
+
+Start here:
+
+- [Roadmap](./docs/planning/ROADMAP.md)
+- [Daemon Architecture](./docs/architecture/DAEMON.md)
+- [Spec Extension Notes](./docs/specification/SPEC_EXTENSION.md)
+- [Research Snapshot](./docs/research/RESEARCH_SNAPSHOT.md)
+- [Adapter Research](./docs/adapters/README.md)
+
+## Development
+
+Current CLI stub:
+
+```bash
+go run ./cmd/epics
+```
+
+Expected next implementation tracks:
+
+1. build out the Go CLI skeleton under `cmd/epics` and `internal/`
+2. initialize the website in `apps/web`
+3. define registry and adapter schemas in `registry/schemas/`
+4. translate docs into implementation checklists
 
 ## Non-goals for V1
 
-- building a full autonomous Epic runtime
-- claiming identical support across every host agent
-- hosting private Epic packages
-- building a package marketplace before the registry and installer are solid
-
-## Success Criteria
-
-V1 is successful when:
-
-- the website clearly explains Epics and lists installable packages
-- the registry has a clean metadata model and CI validation
-- the Go CLI can install and validate Epics reliably
-- Claude and Gemini support feel first-class
-- Codex and OpenCode have honest, usable adapter flows
-
-## Status
-
-Planning and architecture definition.
-
-See [docs/planning/ROADMAP.md](./docs/planning/ROADMAP.md) for the phased
-implementation plan.
+- redefining the Epic standard
+- pretending all host CLIs have feature parity
+- building a full autonomous runtime before the registry and installer are real
+- splitting website and CLI into separate repos before ownership and release
+  cadence justify it
