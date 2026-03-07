@@ -16,7 +16,7 @@ and install metadata through the local registry.
 
 Planned stack:
 
-- Next.js
+- Astro
 - TypeScript
 - MDX
 

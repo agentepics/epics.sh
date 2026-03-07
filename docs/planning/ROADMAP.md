@@ -170,7 +170,7 @@ Core UX:
 
 Technical approach:
 
-- Next.js + TypeScript + MDX
+- Astro + TypeScript + MDX
 - static generation from `registry/`
 - release-driven generation for CLI downloads and release pages
 - simple client-side search from generated JSON

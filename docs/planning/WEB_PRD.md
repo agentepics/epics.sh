@@ -405,11 +405,20 @@ registry and CLI metadata existing in machine-readable form.
 
 Current planned stack remains correct:
 
-- Next.js
+- Astro
 - TypeScript
 - MDX
 - static generation from `registry/`
 - simple client-side search from generated JSON
+
+Why Astro:
+
+- the product is primarily a static directory, docs/manual site, and release
+  surface
+- MDX is a first-class requirement
+- low-JS delivery is a better default than a heavier app framework for this V1
+- interactive pieces such as search, filters, and copy/install widgets can be
+  handled as focused islands
 
 Additional technical expectations for the web app:
 
