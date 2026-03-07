@@ -2,7 +2,7 @@
 
 This document records possible future Epic spec extensions that only become
 plausible if `epicsd` reaches the Phase C model described in
-[DAEMON.md](./DAEMON.md):
+[DAEMON.md](../architecture/DAEMON.md):
 
 - optional local daemon
 - daemon-backed host adapters

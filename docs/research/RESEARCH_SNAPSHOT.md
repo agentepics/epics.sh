@@ -9,19 +9,20 @@ Research date: March 7, 2026.
 
 Host adapter research was split into:
 
-- `adapters/README.md`
-- `adapters/CLAUDE_CODE.md`
-- `adapters/CODEX_CLI.md`
-- `adapters/GEMINI_CLI.md`
-- `adapters/OPENCODE_CLI.md`
+- `docs/adapters/README.md`
+- `docs/adapters/CLAUDE_CODE.md`
+- `docs/adapters/CODEX_CLI.md`
+- `docs/adapters/GEMINI_CLI.md`
+- `docs/adapters/OPENCODE_CLI.md`
 
 Older `INTEGRATION.md` was deleted and replaced by the folder above.
 
 Related planning docs already created earlier:
 
 - `README.md`
-- `ROADMAP.md`
-- `DAEMON.md`
+- `docs/planning/ROADMAP.md`
+- `docs/architecture/DAEMON.md`
+- `docs/specification/SPEC_EXTENSION.md`
 
 ## Main Conclusions
 
@@ -163,7 +164,7 @@ Observed relevance:
 ## Recommended Next Steps
 
 1. Add a formal host capability schema to the repo.
-2. Update `ROADMAP.md` to point at `adapters/`.
+2. Update `docs/planning/ROADMAP.md` to point at `docs/adapters/`.
 3. Turn the adapter docs into implementation checklists for
    `epics host setup <host>`.
 4. Decide whether `epicsd` is optional from V1 or deferred entirely.

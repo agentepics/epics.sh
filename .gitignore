@@ -1,0 +1,21 @@
+.DS_Store
+
+# Go
+bin/
+dist/
+coverage.out
+
+# Node / web
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editors
+.idea/
+.vscode/
+

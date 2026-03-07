@@ -158,14 +158,14 @@ Claude-specific objective:
 - the Claude adapter should be shippable both as generated workspace setup and
   as a real Claude Code plugin distribution
 
-## Proposed Repository Shape
+## Repository Shape
 
-This repo should evolve into a small monorepo:
+This repo is set up as a small monorepo:
 
 ```text
 .
 ├── README.md
-├── ROADMAP.md
+├── go.mod
 ├── apps/
 │   └── web/              # website and docs
 ├── cmd/
@@ -177,6 +177,8 @@ This repo should evolve into a small monorepo:
 ├── docs/                 # project docs, not hosted Epic docs
 └── examples/             # sample Epic packages and host setups
 ```
+
+Planning and research docs live under `docs/`.
 
 ## Recommended Implementation Approach
 
@@ -236,4 +238,5 @@ V1 is successful when:
 
 Planning and architecture definition.
 
-See [ROADMAP.md](./ROADMAP.md) for the phased implementation plan.
+See [docs/planning/ROADMAP.md](./docs/planning/ROADMAP.md) for the phased
+implementation plan.
