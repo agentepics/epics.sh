@@ -24,6 +24,7 @@ Key decisions:
 
 - `epics.sh` does not redefine the Epic standard
 - the registry is Git-backed first
+- public curated sample Epics live in a separate `agentepics/epics` repository
 - Codex support is explicitly partial until richer hooks exist
 - runtime support is adapter-driven and capability-gated
 - Claude Code plugin packaging is an explicit product objective, not an optional
@@ -44,6 +45,8 @@ Deliverables:
 - initialize `apps/web`
 - initialize Go module for CLI and internal packages
 - add shared docs, schemas, and example content
+- define the split between local `examples/`, local `registry/`, and external
+  public Epic source repositories
 - add lint, test, and release scaffolding
 - add CI for website build, CLI test, and registry validation
 
@@ -71,12 +74,20 @@ Exit criteria:
 
 Goal: make the directory data model real before building polished UI.
 
+Model note:
+
+- `registry/` holds listing metadata, schemas, digests, install metadata, and
+  generated indexes
+- public curated Epic source repos can live outside this monorepo, starting
+  with `agentepics/epics`
+
 Deliverables:
 
 - Epic listing schema
 - maintainer schema
 - host compatibility schema
 - install manifest schema
+- digest metadata for reviewed versions
 - versioned content layout for `registry/epics/*`
 - sample Epic entries based on reference examples
 
@@ -89,6 +100,7 @@ Each Epic listing should include:
 - maintainers
 - source repo
 - version
+- digest
 - host support matrix
 - install instructions
 - validation status
@@ -141,12 +153,17 @@ Core pages:
 - Epic detail page
 - docs overview
 - CLI install page
+- CLI downloads page
+- releases or changelog page
+- manual landing page
 - host compatibility page
 
 Core UX:
 
 - search by tag, host, and category
 - filter by support level
+- top-of-page copyable `epics install <repo> --agent <optional-agent>` commands
+- bootstrap CLI installation when `epics` is not already installed
 - per-host install instructions
 - copyable CLI snippets
 - prominent trust and maintenance metadata
@@ -155,6 +172,7 @@ Technical approach:
 
 - Next.js + TypeScript + MDX
 - static generation from `registry/`
+- release-driven generation for CLI downloads and release pages
 - simple client-side search from generated JSON
 
 Exit criteria:
@@ -162,6 +180,8 @@ Exit criteria:
 - site deploys from CI
 - all registry entries have generated detail pages
 - install snippets come from source metadata, not hardcoded page content
+- reviewed entries expose digest-backed integrity metadata
+- CLI download, release, and manual pages are generated from source metadata
 
 ## Phase 5: Host adapters
 

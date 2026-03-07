@@ -21,6 +21,7 @@ Related planning docs already created earlier:
 
 - `README.md`
 - `docs/planning/ROADMAP.md`
+- `docs/planning/WEB_PRD.md`
 - `docs/architecture/DAEMON.md`
 - `docs/specification/SPEC_EXTENSION.md`
 

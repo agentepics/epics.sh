@@ -9,6 +9,10 @@ The Epic spec itself lives in:
 
 - https://github.com/agentepics/agentepics
 
+Public curated sample Epics authored by the project should live in:
+
+- https://github.com/agentepics/epics
+
 Rules:
 
 - keep the Epic model host-neutral
@@ -21,12 +25,14 @@ Key paths:
 - `apps/web/`
 - `cmd/epics/`
 - `internal/`
+- `examples/`
 - `registry/`
 - `docs/`
 
 Read before major architectural changes:
 
 - `docs/planning/ROADMAP.md`
+- `docs/planning/WEB_PRD.md`
 - `docs/architecture/DAEMON.md`
 - `docs/specification/SPEC_EXTENSION.md`
 - `docs/adapters/README.md`

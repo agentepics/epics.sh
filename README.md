@@ -17,12 +17,17 @@ This repo is intended to hold:
 - the Go CLI
 - the Git-backed Epic registry
 - shared schemas and adapter capability metadata
+- local examples and test fixtures
 - research and planning docs that drive implementation
 
 The Epic model itself is informed by the sibling `agentepics` reference work,
 where an Epic is a valid `SKILL.md` package plus an `EPIC.md` file and optional
 runtime surfaces such as `plans/`, `state/`, `log/`, `hooks/`, `cron.d/`, and
 `policy.yml`.
+
+Public curated sample Epics authored by the project should live in the separate
+`agentepics/epics` repository. This repo keeps the registry, schemas, website,
+CLI, and local development fixtures.
 
 ## Repository Layout
 
@@ -38,9 +43,9 @@ runtime surfaces such as `plans/`, `state/`, `log/`, `hooks/`, `cron.d/`, and
 │   └── epics/                # Go CLI entrypoint
 ├── internal/                 # shared Go packages
 ├── registry/
-│   ├── epics/                # registry entries
+│   ├── epics/                # registry metadata and listing entries
 │   └── schemas/              # metadata and manifest schemas
-├── examples/                 # examples and fixtures
+├── examples/                 # local examples, fixtures, and smoke-test inputs
 └── docs/
     ├── planning/
     ├── architecture/
