@@ -103,6 +103,7 @@ Not implemented yet:
 Start here:
 
 - [Roadmap](./docs/planning/ROADMAP.md)
+- [Web PRD](./docs/planning/WEB_PRD.md)
 - [Daemon Architecture](./docs/architecture/DAEMON.md)
 - [Spec Extension Notes](./docs/specification/SPEC_EXTENSION.md)
 - [Research Snapshot](./docs/research/RESEARCH_SNAPSHOT.md)
