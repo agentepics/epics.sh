@@ -137,6 +137,42 @@ For `epicsd`, this means:
 If `epicsd` remains local IPC only in early versions, that is a feature, not a
 limitation.
 
+### Remote Access Posture
+
+If `epicsd` ever supports remote access, the safest posture is:
+
+1. local-first by default
+2. private remote access before public ingress
+3. tunnel as transport, not trust
+
+That implies:
+
+- loopback or local IPC should remain the default deployment model
+- Tailscale- or SSH-style private-network access is preferable to exposing a
+  broad public daemon endpoint
+- Cloudflare Tunnel-style exposure is more appropriate for narrow ingress
+  surfaces such as signed webhooks than for general daemon control
+
+Most importantly:
+
+- the tunnel should not be the primary security model
+- `epicsd` must still enforce auth, scopes, route permissions, and auditability
+  itself
+
+The right mental model is:
+
+- local-only is the baseline
+- remote access is opt-in
+- transport is pluggable
+- trust stays inside the daemon
+
+This is also the likely design posture a product like Claude Code would take:
+
+- keep the core runtime usable without network dependency
+- treat remote access as an advanced deployment mode
+- prefer private-network access over broad public exposure
+- fail closed when remote auth or transport is unavailable
+
 ### 5. A daemon becomes more defensible when it supports multiple runtimes
 
 OpenClaw’s gateway is not only about chat transport. It also supports HTTP
