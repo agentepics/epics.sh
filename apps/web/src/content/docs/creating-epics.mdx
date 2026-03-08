@@ -1,0 +1,75 @@
+---
+title: Creating Epics
+description: Use the create-epic skill to scaffold a complete Epic package from scratch.
+section: Guides
+order: 15
+navTitle: Creating Epics
+---
+
+The [`create-epic`](https://github.com/agentepics/skills) skill is a guided
+scaffolding tool for coding agents. Point your agent at it and it will walk
+through a series of prompts to produce a spec-compliant Epic package ready for
+use with the `epics` CLI.
+
+## Invoking the skill
+
+Skills are markdown instruction sets that agents follow. The `create-epic` skill
+lives in the skills repo:
+
+```
+github.com/agentepics/skills/create-epic
+```
+
+Hand the skill source to your coding agent (for example via a slash command or
+by pasting the file) and it will drive the scaffolding conversation.
+
+## What gets created
+
+The skill produces a standard Epic package layout:
+
+```
+my-epic/
+├── SKILL.md        # Agent-readable skill definition
+├── EPIC.md         # Human-readable overview and intent
+├── state.json      # Persistent workflow state
+├── plans/          # Step-by-step execution plans
+├── log/            # Session and event logs
+├── cron.d/         # Scheduled tasks
+├── hooks/          # Lifecycle hook scripts
+└── policy.yml      # Constraints and guardrails
+```
+
+Every file has a role in the Epic lifecycle. The scaffolder fills in sensible
+defaults so you can start iterating immediately.
+
+## Archetypes
+
+The skill asks you to pick an archetype that shapes the generated package:
+
+- **Workflow** — A multi-step process with a clear start and end. Use this for
+  implementation tracks, migrations, or release operations.
+- **Instance** — A long-lived workspace that persists across sessions. Good for
+  research, ongoing maintenance, or anything without a fixed finish line.
+- **Capability** — A reusable building block that other Epics can compose. Pick
+  this when the goal is a shared skill or utility rather than a standalone task.
+
+## Key concepts
+
+**Cron schedules** — Epics can declare recurring tasks in `cron.d/`. These let
+the agent perform periodic work like syncing state, running checks, or
+publishing reports without manual triggers.
+
+**Hooks** — Lifecycle hooks in `hooks/` fire at defined points (start, pause,
+resume, complete). They are useful for setup, teardown, and notifications.
+
+**Policy constraints** — `policy.yml` sets guardrails for the agent: resource
+limits, allowed actions, review gates, and escalation rules. Policies keep
+autonomous work predictable without micromanagement.
+
+## Next steps
+
+- Read the [Authoring Model](/docs/authoring-model) doc for the design
+  principles behind portable Epic packages.
+- Browse the skill source at
+  [github.com/agentepics/skills](https://github.com/agentepics/skills) for the
+  full scaffolding logic and prompt templates.
