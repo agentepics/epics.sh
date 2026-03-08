@@ -33,12 +33,26 @@ support compared to Claude Code or Gemini CLI.
    `--ask-for-approval` shape what unattended automation can do. These are
    execution-policy constraints, not lifecycle hooks.
 
-## Main constraint
+## Why Codex isn't a supported host yet
 
-Codex is weaker than Claude Code and Gemini CLI for direct hook-style lifecycle
-integration. This means `epics.sh` should avoid promising full runtime parity,
-automatic condition-triggered behaviour, or host-native cron orchestration
-without extra runtime help.
+To qualify as a supported host, a CLI must let the adapter **wire host-native
+hooks to Epic lifecycle events** — things like `status-changed`,
+`milestone-complete`, `became-blocked`, and `cron-fired`. The supported hosts
+handle this today:
+
+- **Claude Code** has slash commands, subagent hooks, and custom command
+  triggers that the adapter can bind to Epic events.
+- **Gemini CLI** has an extension and custom-command system with hook callbacks
+  the adapter can register.
+
+Codex has no equivalent mechanism. It can _run_ commands (`codex exec`) and
+_read_ instructions (`AGENTS.md`), but it cannot **react to runtime events on
+its own**. There is no way to tell Codex "when the Epic status changes, run
+this script" using only host-native features.
+
+Without that, the adapter would have to poll or rely entirely on the `epicsd`
+daemon to drive lifecycle events — meaning Codex couldn't meet the same
+autonomy contract as the other hosts through the adapter layer alone.
 
 ## Path to promotion
 

@@ -9,5 +9,9 @@ const releasesPath = fileURLToPath(
 
 export async function getReleaseIndex() {
 	const raw = await readFile(releasesPath, 'utf-8');
-	return JSON.parse(raw) as CliReleaseIndex;
+	try {
+		return JSON.parse(raw) as CliReleaseIndex;
+	} catch (error) {
+		throw new Error(`failed to parse JSON at ${releasesPath}`, { cause: error });
+	}
 }

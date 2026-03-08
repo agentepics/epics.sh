@@ -5,6 +5,7 @@ export const siteDescription =
 	'Directory and CLI home for Agent Epics: stateful, long-running workflows for coding agents.';
 
 export const navLinks = [
+	{ href: '/', label: 'Home' },
 	{ href: '/docs', label: 'Docs' },
 	{ href: '/cli', label: 'CLI' },
 ];

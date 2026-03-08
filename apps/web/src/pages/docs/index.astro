@@ -2,14 +2,9 @@
 import { getCollection } from 'astro:content';
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { docSlug } from '../../lib/docs';
 
 const docs = (await getCollection('docs')).sort((left, right) => left.data.order - right.data.order);
-const toDocPath = (id: string) => {
-	const withoutExtension = id.replace(/\.mdx?$/, '');
-	return withoutExtension.endsWith('/index')
-		? withoutExtension.slice(0, -'/index'.length)
-		: withoutExtension;
-};
 const grouped = docs.reduce<Record<string, typeof docs>>((accumulator, entry) => {
 	(accumulator[entry.data.section] ??= []).push(entry);
 	return accumulator;
@@ -30,12 +25,11 @@ const grouped = docs.reduce<Record<string, typeof docs>>((accumulator, entry) =>
 	<section class="docs-grid">
 		{Object.entries(grouped).map(([section, entries]) => (
 			<article>
-				<p class="eyebrow">{section}</p>
 				<h2>{section}</h2>
 				<ul class="docs-link-list">
 					{entries.map((entry) => (
 						<li>
-							<a href={`/docs/${toDocPath(entry.id)}`}>{entry.data.navTitle ?? entry.data.title}</a>
+							<a href={`/docs/${docSlug(entry.id)}`}>{entry.data.navTitle ?? entry.data.title}</a>
 							<p class="meta-line">{entry.data.description}</p>
 						</li>
 					))}

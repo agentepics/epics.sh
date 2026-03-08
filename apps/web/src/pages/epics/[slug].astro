@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CommandSwitcher from '../../components/CommandSwitcher.astro';
-import { buildInstallerCommand, getEpics } from '../../lib/registry';
+import { buildInstallerCommand, getEpicSourcePath, getEpics } from '../../lib/registry';
 import { renderMarkdown } from '../../lib/markdown';
 import { formatDate } from '../../lib/site';
 import type { EpicRecord, Maintainer } from '../../lib/types';
@@ -25,6 +25,7 @@ const guidedInstallCommands = [
 		command: buildInstallerCommand(epic, 'windows'),
 	},
 ];
+const epicSourcePath = getEpicSourcePath(epic);
 ---
 
 <BaseLayout title={epic.title} description={epic.summary}>
@@ -68,8 +69,8 @@ const guidedInstallCommands = [
 			))}
 		</ul>
 		<p class="support-note">Source</p>
-		<a class="source-link" href={`https://${epic.source.repo}${epic.source.path ? `/${epic.source.path}` : ''}`}>
-			{epic.source.repo}{epic.source.path ? `/${epic.source.path}` : ''}
+		<a class="source-link" href={`https://${epicSourcePath}`}>
+			{epicSourcePath}
 		</a>
 	</section>
 

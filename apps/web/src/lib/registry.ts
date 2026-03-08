@@ -7,7 +7,11 @@ const epicsDir = fileURLToPath(new URL('../../../../registry/epics/', import.met
 
 async function readJson<T>(path: string) {
 	const raw = await readFile(path, 'utf-8');
-	return JSON.parse(raw) as T;
+	try {
+		return JSON.parse(raw) as T;
+	} catch (error) {
+		throw new Error(`failed to parse JSON at ${path}`, { cause: error });
+	}
 }
 
 export async function getEpics(): Promise<EpicRecord[]> {
@@ -26,11 +30,6 @@ export async function getEpics(): Promise<EpicRecord[]> {
 	});
 }
 
-export async function getEpicBySlug(slug: string): Promise<EpicRecord | undefined> {
-	const epics = await getEpics();
-	return epics.find((entry: EpicRecord) => entry.slug === slug);
-}
-
 export function getEpicSourcePath(epic: EpicRecord) {
 	return `${epic.source.repo}${epic.source.path ? `/${epic.source.path}` : ''}`;
 }
@@ -42,18 +41,4 @@ export function buildInstallerCommand(epic: EpicRecord, platform: 'unix' | 'wind
 	}
 
 	return `curl -fsSL https://epics.sh/install.sh | sh -s -- ${sourcePath}`;
-}
-
-export function matchesQuery(epic: EpicRecord, query: string) {
-	const haystack = [
-		epic.title,
-		epic.summary,
-		epic.description,
-		epic.category,
-		...epic.tags,
-	]
-		.join(' ')
-		.toLowerCase();
-
-	return haystack.includes(query.toLowerCase());
 }

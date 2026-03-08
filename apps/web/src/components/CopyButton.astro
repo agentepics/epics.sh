@@ -1,5 +1,5 @@
 ---
-const { value, label = 'Copy' } = Astro.props;
+const { value, label = 'Copy' } = Astro.props as { value: string; label?: string };
 ---
 
 <button class="copy-button" type="button" data-copy={value}>

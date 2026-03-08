@@ -5,6 +5,9 @@ import { getReleaseIndex } from '../../lib/cli';
 import { formatDate } from '../../lib/site';
 
 const releases = await getReleaseIndex();
+if (releases.releases.length === 0) {
+	throw new Error('No releases found in registry/cli/releases.json');
+}
 const current = releases.releases[0];
 ---
 

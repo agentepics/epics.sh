@@ -5,16 +5,14 @@ const {
 	command,
 	label = 'Install',
 	description,
-	compact = false,
 } = Astro.props as {
 	command: string;
 	label?: string;
 	description?: string;
-	compact?: boolean;
 };
 ---
 
-<div class={`install-block ${compact ? 'compact' : ''}`}>
+<div class="install-block">
 	<div class="install-meta">
 		<p class="eyebrow">{label}</p>
 		{description && <p class="install-description">{description}</p>}

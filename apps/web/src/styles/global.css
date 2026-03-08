@@ -720,6 +720,63 @@ textarea {
 	max-width: 760px;
 }
 
+.docs-article-header {
+	align-items: flex-start;
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-m);
+}
+
+.md-dropdown {
+	flex-shrink: 0;
+	margin-top: var(--space-l);
+	position: relative;
+}
+
+.md-dropdown-toggle {
+	text-align: center;
+}
+
+.dropdown-arrow {
+	font-size: 1.1em;
+	margin-left: 2px;
+}
+
+.md-dropdown-menu {
+	background: var(--bg);
+	border: 1px solid var(--border-ui);
+	display: none;
+	flex-direction: column;
+	position: absolute;
+	right: 0;
+	top: 100%;
+	white-space: nowrap;
+	z-index: 10;
+}
+
+.md-dropdown:hover .md-dropdown-menu,
+.md-dropdown:focus-within .md-dropdown-menu {
+	display: flex;
+}
+
+.md-dropdown-item {
+	align-items: center;
+	background: none;
+	border: none;
+	color: var(--muted);
+	cursor: pointer;
+	display: flex;
+	font-family: var(--font-mono);
+	font-size: 0.84rem;
+	padding: var(--space-s) 12px;
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+
+.md-dropdown-item:hover {
+	color: var(--accent);
+}
+
 .docs-article h2,
 .docs-article h3 {
 	margin-top: var(--space-xl);
