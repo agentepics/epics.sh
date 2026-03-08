@@ -1,0 +1,59 @@
+{
+  "currentVersion": "0.1.0",
+  "releases": [
+    {
+      "version": "0.1.0",
+      "channel": "preview",
+      "publishedAt": "2026-03-07",
+      "highlights": [
+        "First public web preview with registry-driven Epic pages",
+        "Cross-host support labeling and install command generation",
+        "CLI downloads, releases, changelog, and docs surfaces"
+      ],
+      "downloads": [
+        {
+          "label": "macOS (Apple Silicon)",
+          "target": "darwin-arm64",
+          "url": "#",
+          "checksum": "sha256:7d667a260bf0bc21d8c43b8d9487691911c502b7d0a50a3b4d3a36100b252308"
+        },
+        {
+          "label": "macOS (Intel)",
+          "target": "darwin-amd64",
+          "url": "#",
+          "checksum": "sha256:1f6609e7400568d13f0e2daf5c4cb9db39d50f6be5d11c51bf4067ff6f5c88c5"
+        },
+        {
+          "label": "Linux (x64)",
+          "target": "linux-amd64",
+          "url": "#",
+          "checksum": "sha256:d8ace9c5e4c098ecb4f9fd1d136ead3eeff6a4f4f9d977434e32d009e84f16ad"
+        },
+        {
+          "label": "Windows (x64)",
+          "target": "windows-amd64",
+          "url": "#",
+          "checksum": "sha256:bcb5b383fb876cc4bbbe4f8658257fcae8559f594790e4d0471a7ccf7e67159d"
+        }
+      ]
+    },
+    {
+      "version": "0.0.1",
+      "channel": "prototype",
+      "publishedAt": "2026-03-05",
+      "highlights": [
+        "CLI scaffold",
+        "Initial host research docs",
+        "Roadmap and website product definition"
+      ],
+      "downloads": [
+        {
+          "label": "Prototype tarball",
+          "target": "source",
+          "url": "#",
+          "checksum": "sha256:767c63bc130f475ea2cb87af4894f8720537d4e1dfdeaf9c3634be20c3f8fa73"
+        }
+      ]
+    }
+  ]
+}

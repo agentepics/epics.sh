@@ -23,16 +23,21 @@ These notes use a simple deep-research workflow:
    - officially documented integration methods
    - empirically observed community patterns
    - recommended adapter strategy for `epics.sh`
-5. Prefer capability-based conclusions over parity claims.
+5. Only ship hosts that can satisfy the same autonomy contract once adapted.
 
 Research date: March 7, 2026.
+
+## Supported-Host Rule
+
+`epics.sh` should only offer hosts that can be brought to the same level of
+autonomy through the `epics` CLI and adapter layer. If a host cannot meet that
+bar, it remains research only and does not appear as a supported host.
 
 ## Cross-Host Summary
 
 | Host | Strongest official surfaces | Main constraint |
 |---|---|---|
 | Claude Code | `CLAUDE.md`, slash commands, hooks, subagents, MCP, settings | Powerful but Claude-specific distribution patterns can create lock-in |
-| Codex CLI | `AGENTS.md`, `config.toml`, non-interactive CLI, MCP client/server, sandbox/approval controls | Public integration surface is still thinner than Claude or Gemini |
 | Gemini CLI | `GEMINI.md`, custom commands, hooks, extensions, skills, sub-agents, MCP | Extension system is rich, but still host-specific and JSON/TOML-driven |
 | OpenCode | `AGENTS.md`, commands, plugins, agents, skills, MCP, config, server modes | Broadest programmatic surface, but more implementation work per integration |
 
@@ -56,3 +61,6 @@ That yields a clean split:
 - host adapter = transport and UX
 - `epics` CLI = control surface
 - Epic files = portable state and workflow definition
+
+Codex research remains useful, but Codex should not be presented as a supported
+host unless it can meet the same autonomy contract as the supported set.

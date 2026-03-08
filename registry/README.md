@@ -5,6 +5,7 @@ This directory will hold the Git-backed Epic registry.
 Structure:
 
 - `epics/` for listing metadata and generated data for published Epics
+- `cli/` for release, download, and changelog metadata used by the website
 - `schemas/` for metadata and manifest schemas
 
 The registry is not replaced by the separate `agentepics/epics` repository.

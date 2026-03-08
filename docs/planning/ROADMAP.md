@@ -15,7 +15,7 @@ Goal: lock the product boundary before writing app code.
 Deliverables:
 
 - define the `epics.sh` scope relative to the Agent Epics reference spec
-- define host support tiers: native, strong, partial, install-only
+- define the supported-host contract for `epics.sh`
 - define registry metadata schema for listed Epics
 - define install manifest schema per host CLI
 - define CLI command surface for V1
@@ -25,15 +25,15 @@ Key decisions:
 - `epics.sh` does not redefine the Epic standard
 - the registry is Git-backed first
 - public curated sample Epics live in a separate `agentepics/epics` repository
-- Codex support is explicitly partial until richer hooks exist
-- runtime support is adapter-driven and capability-gated
+- only hosts that satisfy the autonomy contract should be offered
+- runtime support is adapter-driven but should converge on one autonomy promise
 - Claude Code plugin packaging is an explicit product objective, not an optional
   afterthought
 
 Exit criteria:
 
 - schemas drafted
-- support matrix agreed
+- supported-host contract agreed
 - CLI scope cut to a realistic V1
 
 ## Phase 1: Repository scaffolding
@@ -85,7 +85,7 @@ Deliverables:
 
 - Epic listing schema
 - maintainer schema
-- host compatibility schema
+- supported-host schema
 - install manifest schema
 - digest metadata for reviewed versions
 - versioned content layout for `registry/epics/*`
@@ -101,7 +101,6 @@ Each Epic listing should include:
 - source repo
 - version
 - digest
-- host support matrix
 - install instructions
 - validation status
 - screenshots or assets
@@ -121,18 +120,19 @@ V1 commands:
 - `epics init`
 - `epics validate`
 - `epics install`
-- `epics remove`
-- `epics list`
 - `epics info`
 - `epics resume`
-- `epics export-context`
 - `epics doctor`
+- `epics host setup claude`
 
 Implementation priorities:
 
 - Epic package discovery
 - schema validation for `SKILL.md`, `EPIC.md`, and registry manifests
 - install into workspace-local agent directories
+- prompt for host choice when `--host` is omitted instead of auto-detecting
+- keep `.epics/` for CLI metadata while using host-local package paths as the
+  canonical install location
 - context export for host prompts and startup hooks
 - machine-readable output via `--json`
 
@@ -156,15 +156,13 @@ Core pages:
 - CLI downloads page
 - releases or changelog page
 - manual landing page
-- host compatibility page
+- supported agents page
 
 Core UX:
 
-- search by tag, host, and category
-- filter by support level
-- top-of-page copyable `epics install <repo> --agent <optional-agent>` commands
+- search by tag and category
+- top-of-page copyable installer-led commands that pass an Epic path
 - bootstrap CLI installation when `epics` is not already installed
-- per-host install instructions
 - copyable CLI snippets
 - prominent trust and maintenance metadata
 
@@ -191,7 +189,8 @@ Goal: make the CLI useful inside real agent CLIs.
 
 Target:
 
-- first-class setup via generated `.claude` config
+- first-class setup via generated `.claude` config and project-local skill
+  installs under `.claude/skills/<slug>/`
 - official Claude Code plugin packaging around the `epics` CLI
 - plugin structure designed for marketplace submission
 - session-start resume helpers
@@ -206,6 +205,7 @@ Commands:
 Deliverables:
 
 - Claude plugin directory template
+- host-local install target rooted in `.claude/skills/<slug>/`
 - plugin `commands/`, `hooks/`, and optional `agents/` wrappers that delegate to
   `epics`
 - local plugin test flow
@@ -227,19 +227,11 @@ Target:
 - install and resume support first
 - deeper runtime support only where plugin hooks justify it
 
-### 5.4 Codex
-
-Target:
-
-- install and workspace wiring
-- context export and resume helpers
-- notify integration if useful
-- no misleading claim of full runtime parity
-
 Exit criteria:
 
 - each supported host has generated setup output
-- compatibility docs match real adapter behavior
+- `epics install` never guesses the host; it uses `--host` or a prompt
+- supported-agent docs match real adapter behavior
 - host-specific smoke tests exist
 - Claude adapter works both as direct workspace setup and as a Claude plugin
 
@@ -290,8 +282,8 @@ Important constraint:
 
 Exit criteria:
 
-- runtime support matrix published
-- partial support is visible in both CLI and website
+- supported-host contract published
+- unsupported hosts are omitted from both CLI and website
 
 ## Phase 8: Publishing and ecosystem workflows
 

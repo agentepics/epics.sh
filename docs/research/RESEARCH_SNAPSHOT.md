@@ -48,8 +48,8 @@ Related planning docs already created earlier:
 
 ### Codex CLI
 
-- Best treated as a strong CLI automation target, not a first-class hook/runtime
-  target yet.
+- Worth researching as a strong CLI automation target, but not a supported host
+  unless it can satisfy the same autonomy contract as the main host set.
 - Best surfaces: `AGENTS.md`, `config.toml`, `codex exec`, MCP, sandbox and
   approval controls.
 - Community skill-install patterns exist, but should be treated as convenience
@@ -155,7 +155,8 @@ Observed relevance:
 ## Outstanding Gaps
 
 - Codex public documentation still appears thinner than the other hosts for
-  hook-like lifecycle integration. Treat Codex runtime parity claims carefully.
+  hook-like lifecycle integration. Do not treat Codex as a supported host until
+  it can meet the same autonomy contract.
 - Claude plugin/marketplace packaging is visible in the benchmark repo, but the
   most stable official Claude surfaces remain hooks, commands, memory, settings,
   subagents, and MCP.
@@ -164,7 +165,7 @@ Observed relevance:
 
 ## Recommended Next Steps
 
-1. Add a formal host capability schema to the repo.
+1. Add a formal supported-host schema to the repo.
 2. Update `docs/planning/ROADMAP.md` to point at `docs/adapters/`.
 3. Turn the adapter docs into implementation checklists for
    `epics host setup <host>`.

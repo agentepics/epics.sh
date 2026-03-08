@@ -5,6 +5,12 @@
 Codex CLI has a real integration surface, but it is currently thinner and less
 host-opinionated than Claude Code or Gemini CLI.
 
+Current `epics.sh` stance:
+
+- keep this as research
+- do not offer Codex as a supported host unless it can satisfy the same
+  autonomy contract as Claude, Gemini, and OpenCode
+
 The strongest current methods are:
 
 - `AGENTS.md`

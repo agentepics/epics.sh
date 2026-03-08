@@ -2,7 +2,7 @@
 
 Status: Draft
 
-Last updated: 2026-03-07
+Last updated: 2026-03-08
 
 Owner: `apps/web`
 
@@ -15,9 +15,8 @@ Owner: `apps/web`
 
 The benchmark baseline is `skills.sh`: fast discovery, obvious install CTAs,
 detail pages, and hosted docs. `epics.sh` needs parity on those basics, then
-extend the product with first-class multi-host install UX, host compatibility
-clarity, and a complete CLI home for downloads, releases, changelog, and
-manual.
+extend the product with first-class install UX and a complete CLI home for
+downloads, releases, changelog, and manual.
 
 This web product should make Agent Epics easy to:
 
@@ -37,16 +36,16 @@ installation flows, and documentation.
 Existing repo direction already commits us to:
 
 - a public Epic directory
-- docs and compatibility information
+- docs and supported-host information
 - a host-neutral Epic model
 - host-specific adapters generated around the `epics` CLI
-- honest support labeling rather than pretending all hosts have parity
+- only offering hosts that can satisfy the same autonomy contract
 
 ## 3. Benchmark: `skills.sh`
 
-Benchmark date: 2026-03-07.
+Benchmark date: 2026-03-07. Deep design analysis: 2026-03-08.
 
-Observed current strengths from `skills.sh`:
+### 3.1 Observed strengths
 
 - directory homepage that immediately explains the product and exposes search
 - ranked discovery surfaces such as all-time, trending, and hot listings
@@ -55,27 +54,91 @@ Observed current strengths from `skills.sh`:
 - docs, CLI reference, and FAQ hosted on the same site
 - compatibility messaging around supported agents
 
-Relevant benchmark sources:
+### 3.2 Benchmark sources
 
 - homepage: <https://skills.sh/>
 - docs: <https://skills.sh/docs>
 - CLI reference: <https://skills.sh/docs/cli>
 - FAQ: <https://skills.sh/docs/faq>
-- example detail page: <https://skills.sh/redis/agent-skills>
-- example single-skill page: <https://skills.sh/sourman/skills/skill-create>
+- audits: <https://skills.sh/audits>
+- example detail page: click any skill on the homepage leaderboard
 
-What `skills.sh` does not need to solve, but `epics.sh` does:
+### 3.3 Information architecture analysis
 
-- richer compatibility truth across multiple agent hosts
-- generated host-specific install instructions
-- stronger trust metadata around maintainers, validation, and support level
+`skills.sh` has exactly three page types:
+
+1. **Homepage** — compact identity zone (~200px) then leaderboard/directory
+2. **Docs** — sidebar with 3 tabs (Overview, CLI, FAQ), prose content
+3. **Audits** — security audit table with color-coded results
+4. **Detail pages** — per-skill pages reached from the leaderboard
+
+Total navigation links: 2 (Audits, Docs). No separate directory link because
+the homepage IS the directory. No separate CLI page because CLI docs fold into
+Docs.
+
+### 3.4 Design goals inferred from the implementation
+
+**The homepage is the product.** The brand zone (ASCII art, one sentence, install
+command, agent logos) occupies ~200px and exists only so users know they arrived
+at the right place. Below that, the leaderboard IS the page. There is no
+separate directory page, no hero section in the traditional sense.
+
+**Every page terminates at an install command.** Homepage shows CLI install.
+Detail pages show skill-specific install. Docs show install in "Getting
+Started." The install command is the universal primary CTA.
+
+**Ruthless navigation pruning.** Only pages that serve a unique purpose exist.
+"Directory" is not a link because you are already on it. "CLI" is not a link
+because CLI docs live inside Docs. "Compatibility" is not a link because
+compatibility shows per-skill on detail pages. "Changelog" does not exist as a
+page.
+
+**Social proof drives discovery.** Install counts are the primary metadata.
+Leaderboard is sorted by installs. Trending and Hot tabs create urgency.
+Per-skill detail pages show install breakdowns by agent. No editorial curation
+or "featured" badge — popularity IS the ranking.
+
+**Detail pages are functional, not promotional.** Breadcrumb, install command,
+rendered SKILL.md content, metadata sidebar (installs, repo, dates, security
+audits, per-agent installs). The skill's own content speaks for itself.
+
+**No footer.** Pages just end. No secondary nav, no redundant links.
+
+### 3.5 What `skills.sh` does not need to solve, but `epics.sh` does
+
+- a stricter supported-host contract across multiple agent CLIs
+- generated installer-led install instructions
+- stronger trust metadata around maintainers, validation, and digest review
 - desktop CLI distribution for macOS, Linux, and Windows
 - releases, changelog, and manual for a standalone CLI product
 
-Product implication:
+### 3.6 Product implication
 
 `skills.sh` should be treated as the parity floor for discovery and install UX,
-not the ceiling for scope.
+not the ceiling for scope. However, the information architecture lesson is
+clear: merge pages that don't need to be separate, and make the directory the
+homepage rather than a page you navigate to.
+
+### 3.7 Implications for `epics.sh` IA
+
+`epics.sh` has an additional objective that `skills.sh` does not: it is also the
+canonical home for the `epics` CLI as a downloadable developer tool. This means
+`epics.sh` legitimately needs a CLI surface (downloads, releases, changelog)
+that `skills.sh` does not have.
+
+Recommended IA adaptation:
+
+| `skills.sh` page | `epics.sh` equivalent | Notes |
+|---|---|---|
+| Homepage (leaderboard) | Homepage (directory) | Homepage IS the directory |
+| — | — | No separate `/epics` index needed |
+| Detail page | `/epics/[slug]` | Same pattern |
+| Docs (3 tabs) | `/docs` (sidebar nav) | Fold compatibility into docs |
+| Audits | Defer to post-MVP | Not needed until trust program exists |
+| — | `/cli` | CLI home: downloads, changelog, manual |
+
+Recommended navigation: 2-3 links max (Docs, CLI, and possibly Changelog if
+it cannot live inside CLI).
 
 ## 4. Problem Statement
 
@@ -96,15 +159,15 @@ Without the website:
 `epics.sh` should feel like:
 
 - `skills.sh` for discovery speed and install clarity
-- plus a compatibility-aware package directory
+- plus a supported-host-aware package directory
 - plus the canonical website for the `epics` CLI
 
 A user should be able to arrive at the site and complete one of these jobs in
 under a few minutes:
 
 - find an Epic for a task or workflow
-- decide whether it works with Claude, Gemini, OpenCode, or Codex
-- copy the right install command for their host
+- trust that it works on every supported host
+- copy the install command
 - download the `epics` CLI for their platform
 - read the manual or changelog when they need depth
 
@@ -114,11 +177,11 @@ under a few minutes:
 
 - Build a credible public Epic directory with feature parity to `skills.sh` on
   core discovery and install flows.
-- Make installation extremely easy with obvious, copyable, host-specific
+- Make installation extremely easy with obvious, copyable bootstrap and install
   commands generated from source metadata.
 - Establish `epics.sh` as the official home of the `epics` CLI.
-- Present host support honestly using capability-based labeling and visible
-  caveats.
+- Present a clear supported-host contract: every offered host meets the same
+  autonomy promise.
 - Make trust visible through validation state, maintainer identity, versioning,
   source links, and maintenance metadata.
 
@@ -132,7 +195,7 @@ under a few minutes:
 
 ## 7. Non-Goals For V1
 
-- No claim that all hosts support the same runtime semantics.
+- No support for hosts that cannot meet the autonomy contract.
 - No web-only install instructions that diverge from CLI or registry metadata.
 - No runtime dashboard or daemon UI.
 - No community submission workflow in the first public release.
@@ -161,12 +224,24 @@ downloads, release notes, docs, and installation guidance.
   than inventing a separate one.
 - Host-neutral core: Epic packaging stays portable; host-specific UX is layered
   on top.
-- Honest compatibility: partial support is shown plainly, especially for Codex.
+- Supported-host contract: only hosts that can uphold the autonomy promise are
+  offered.
 - Install-first UX: every major page should create a short path to action.
-- Source-derived content: install snippets and compatibility data come from
+- Source-derived content: install snippets and supported-host data come from
   registry or release metadata, not hardcoded copy.
 - Static-first delivery: prefer static generation and generated indexes before
   introducing server complexity.
+
+### 9.1 Design and editorial direction
+
+- The visual direction should feel terminal-like and operational, in the spirit
+  of `skills.sh`, without cloning its layout or details one-to-one.
+- Typography, spacing, and surface treatment should suggest a serious developer
+  tool rather than a generic SaaS landing page.
+- Copy should borrow themes from `agentepics/agentepics`: long-running work,
+  continuity across sessions, portable workflow packages, and durable state.
+- Product copy should avoid hype and stay concrete about what Epics preserve:
+  plans, checkpoints, logs, decisions, resume context, and host-specific setup.
 
 ## 10. Requirements
 
@@ -179,7 +254,7 @@ The MVP must include:
 - Epic detail page
 - docs overview
 - CLI install page
-- host compatibility page
+- supported agents page
 - CLI downloads page
 - releases page
 - changelog page
@@ -194,7 +269,7 @@ The landing page must:
 - offer immediate search or browse entry into the directory
 - provide a primary install CTA for the CLI
 - provide a secondary CTA for browsing Epics
-- show host support posture at a glance
+- show supported agents at a glance
 - feature curated or popular Epics once ranking data exists
 
 ### 10.3 Directory index
@@ -202,11 +277,10 @@ The landing page must:
 The directory index must:
 
 - support search by title, summary, tag, category, and host
-- support filtering by support level
+- support filtering by category in V1
 - support sorting by at least featured and newest in V1
 - leave room for trending or popular ranking once telemetry or installs exist
-- show strong summary cards with title, summary, tags, support badges, and
-  trust signals
+- show strong summary cards with title, summary, tags, and trust signals
 
 ### 10.4 Epic detail page
 
@@ -218,9 +292,7 @@ Each Epic detail page must show:
 - source repository
 - version
 - maintainers
-- host support matrix
-- support caveats by host
-- generated install instructions per host
+- generated install instructions, with host-specific variants where needed
 - validation state
 - screenshots or assets where available
 - links to source docs
@@ -228,26 +300,29 @@ Each Epic detail page must show:
 Each detail page must include:
 
 - a default install CTA at the top of the page
-- a copyable `epics install <repo> --agent <optional-agent>` command at the top
-  of the page, similar to the install treatment on `skills.sh`
-- host-specific copyable snippets
-- a clear explanation when support is partial or install-only
+- a copyable bootstrap-and-install command that passes the Epic path directly to
+  the installer
+- digest-backed trust metadata
 
 Install presentation requirements:
 
-- the default install command should use the Epic source repo path
-- the `--agent` flag should appear when a host-specific install path is being
-  shown
+- the default install command should use the Epic source repo path as an
+  installer argument
+- the default install command should not force an upfront agent choice
+- the installer should ask the user a short series of setup questions after it
+  starts
+- the current project folder should be the install context; no global Epic
+  install location should be implied
 - the top-of-page install surface should prioritize speed over explanation
 - more detailed setup guidance can appear below the fold
 
-### 10.5 Compatibility page
+### 10.5 Supported agents page
 
-The compatibility page must:
+The supported agents page must:
 
-- define support levels such as native, strong, partial, and install-only
-- explain how support differs by host capability
-- compare Claude Code, Gemini CLI, OpenCode, Codex, and generic shell agents
+- define the supported-host contract
+- list the hosts that satisfy it
+- make clear that unsupported hosts are omitted rather than downgraded
 - align exactly with adapter reality and published docs
 
 ### 10.6 CLI home
@@ -272,7 +347,7 @@ The docs surface must include:
 - product overview
 - getting started
 - install guide
-- host compatibility guide
+- supported agents guide
 - authoring model
 - troubleshooting
 - CLI manual
@@ -287,31 +362,36 @@ Install UX is a top-level requirement.
 The site must make installation extremely easy by:
 
 - showing copyable commands in the first viewport where possible
-- defaulting to the right install path based on selected host
+- defaulting to a guided install path and asking host questions when `--host` is
+  not already provided
 - generating snippets from registry or release metadata
 - distinguishing CLI installation from Epic installation
 - minimizing the number of decisions before a user can try the product
 
 Recommended install model:
 
-- direct Epic install on detail pages uses `epics install <repo> --agent
-  <optional-agent>`
-- if `epics` is already installed, that direct command is the primary path
-- if `epics` is not installed, the site should also offer a bootstrap one-liner
-  that installs the CLI first and then runs the requested `epics install`
-  command
+- detail pages should use a single bootstrap command that accepts the Epic path
+  directly and then runs an interactive guided install flow
+- the installer should detect or install the CLI as needed, then continue with
+  the requested Epic
+- direct `epics install <repo>` should remain available in docs and manual
+  reference for advanced users and automation, but does not need to be a visible
+  primary path on Epic detail pages
+- when the user selects Claude, the resulting install should materialize under
+  `.claude/skills/<slug>/` in the current project
 
 Recommended bootstrap shape:
 
-- Unix-like systems: `curl -fsSL https://epics.sh/install.sh | sh`
-- Windows: PowerShell bootstrap equivalent
-- after bootstrap, the site should return the user to the canonical `epics
-  install ...` command rather than creating a permanently separate install path
+- Unix-like systems:
+  `curl -fsSL https://epics.sh/install.sh | sh -s -- <epic-path>`
+- Windows: PowerShell equivalent that passes `-Epic <epic-path>` to the script
+- the installer should ask only the setup questions that materially change the
+  result, such as host choice when `--host` is not already specified
 
 This keeps the visible product model simple:
 
-- install the CLI
-- run `epics install ...`
+- copy one command from the Epic page
+- let the installer handle CLI bootstrap and setup questions
 
 Potential future convenience path:
 
@@ -327,8 +407,7 @@ The site must surface:
 - source repository
 - last updated date
 - version
-- support level by host
-- warnings for partial support
+- digest-backed review status
 
 If security review or verification programs exist later, the UI should be able
 to adopt them without redesign.
@@ -352,27 +431,61 @@ Requirements:
 
 ## 11. Information Architecture
 
-Top-level navigation should likely include:
+### 11.1 IA revision based on `skills.sh` benchmark analysis
 
-- Directory
-- CLI
+The original IA proposed 5 top-level nav items and 11 routes. After deep
+analysis of `skills.sh` (see Section 3.3–3.7), the IA should be tightened to
+reduce navigation friction and merge pages that don't serve unique purposes.
+
+Key principle from `skills.sh`: if a page's content can live inside another
+page without hurting discoverability, it should not be a separate nav item.
+
+### 11.2 Revised top-level navigation
+
 - Docs
-- Compatibility
-- Changelog
+- CLI
 
-Suggested route model:
+Two links. The homepage IS the directory, so "Directory" is not a nav item.
+Compatibility folds into Docs or into per-epic detail pages. Changelog folds
+into the CLI section.
 
-- `/`
-- `/epics`
-- `/epics/[slug]`
-- `/cli`
-- `/cli/install`
-- `/cli/downloads`
-- `/cli/releases`
-- `/cli/changelog`
-- `/docs`
-- `/docs/[...slug]`
-- `/compatibility`
+### 11.3 Revised route model
+
+Homepage and directory:
+
+- `/` — identity zone + epic directory (the homepage IS the directory)
+- `/epics/[slug]` — epic detail page
+
+CLI home (unique to `epics.sh`, not present in `skills.sh`):
+
+- `/cli` — CLI overview, install instructions, downloads
+- `/cli/changelog` — release notes and changelog
+
+Docs:
+
+- `/docs` — docs landing
+- `/docs/[...slug]` — individual doc pages (getting started, manual,
+  compatibility, authoring model, etc.)
+
+### 11.4 Routes removed or merged
+
+| Original route | Disposition |
+|---|---|
+| `/epics` (directory index) | Merged into `/` — homepage IS the directory |
+| `/cli/install` | Merged into `/cli` |
+| `/cli/downloads` | Merged into `/cli` |
+| `/cli/releases` | Merged into `/cli/changelog` or deferred |
+| `/compatibility` | Merged into `/docs/compatibility` or shown per-epic |
+
+### 11.5 Rationale
+
+- `skills.sh` proves that a directory site works best when the homepage is the
+  directory itself, not a separate marketing page that links to a directory
+- the CLI surface is a legitimate differentiator for `epics.sh` and deserves its
+  own nav item, but its sub-pages (install, downloads, releases) can consolidate
+  into fewer routes
+- compatibility information is most useful in context (on epic detail pages) and
+  as a reference doc, not as a standalone top-level page
 
 ## 12. Data And Content Dependencies
 
@@ -382,7 +495,7 @@ Required upstream inputs:
 
 - Epic listing schema
 - maintainer schema
-- host compatibility schema
+- supported-host schema
 - install manifest schema
 - digest metadata for reviewed Epic versions
 - sample registry entries
@@ -425,7 +538,7 @@ Additional technical expectations for the web app:
 - generated pages from registry data
 - generated install snippets from source metadata
 - generated release/download pages from release metadata
-- a design system that can express host support clearly
+- a design system that can express supported agents clearly
 - strong mobile behavior for install and docs flows
 
 ## 14. Success Criteria
@@ -433,7 +546,7 @@ Additional technical expectations for the web app:
 The website MVP is successful when:
 
 - a new user can discover an Epic and copy an install command in under 2 minutes
-- the site clearly communicates host support without misleading parity claims
+- the site clearly communicates the supported-host contract
 - all registry entries have generated detail pages
 - CLI download and installation paths are obvious for macOS, Linux, and Windows
 - docs and manual are navigable without leaving the site
@@ -444,13 +557,13 @@ The website MVP is successful when:
 ### Phase A: PRD and data contracts
 
 - finalize product requirements
-- finalize registry and compatibility schemas
+- finalize registry and supported-host schemas
 - define release metadata inputs for CLI pages
 
 ### Phase B: Website MVP foundation
 
 - scaffold `apps/web`
-- build landing page, directory, detail page, docs shell, and compatibility page
+- build landing page, directory, detail page, docs shell, and supported agents page
 - wire static generation and search index
 
 ### Phase C: CLI home
@@ -531,7 +644,9 @@ Decision:
   - per-host support levels
   - `last_updated`
 - Epic detail pages should additionally require:
-  - install metadata for `epics install <repo> --agent <optional-agent>`
+  - install metadata for both the guided bootstrap flow and the direct
+    `epics install <repo>` flow
+  - digest
   - validation status
   - host-specific caveats
 
@@ -539,7 +654,36 @@ Reason:
 
 - title and summary alone are not sufficient for a trust-oriented directory
 
-### 16.6 Sample Epic sourcing
+### 16.6 Install model
+
+Decision:
+
+- Epic detail pages should default to a bootstrap command that passes the Epic
+  path into the installer
+- the installer should detect or install the CLI as needed, then ask a short
+  series of setup questions
+- upfront `--agent` selection should be treated as an advanced path rather than
+  the default website flow
+
+Reason:
+
+- this keeps the visible command surface simple while still preserving
+  predictable non-interactive and host-specific flows for advanced users
+
+### 16.7 Supported-host contract
+
+Decision:
+
+- every Epic must support every supported host
+- supported hosts are global product metadata, not per-Epic compatibility data
+- if a host cannot uphold the autonomy contract, it should not be offered at all
+
+Reason:
+
+- this removes noisy compatibility structures and aligns the website with the
+  actual user promise of the `epics` CLI
+
+### 16.8 Sample Epic sourcing
 
 Decision:
 
