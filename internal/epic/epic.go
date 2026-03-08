@@ -1,0 +1,445 @@
+package epic
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+type Diagnostic struct {
+	Level   string `json:"level"`
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
+type Package struct {
+	Root       string   `json:"root"`
+	Slug       string   `json:"slug"`
+	Title      string   `json:"title"`
+	Summary    string   `json:"summary,omitempty"`
+	SkillPath  string   `json:"skillPath,omitempty"`
+	EpicPath   string   `json:"epicPath,omitempty"`
+	StatePath  string   `json:"statePath,omitempty"`
+	StateCore  string   `json:"stateCorePath,omitempty"`
+	PlanFiles  []string `json:"planFiles,omitempty"`
+	LogFiles   []string `json:"logFiles,omitempty"`
+	Roadmap    string   `json:"roadmapPath,omitempty"`
+	Decisions  string   `json:"decisionsPath,omitempty"`
+	PolicyPath string   `json:"policyPath,omitempty"`
+}
+
+func Load(root string) (Package, error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return Package{}, err
+	}
+
+	info, err := os.Stat(absRoot)
+	if err != nil {
+		return Package{}, err
+	}
+	if !info.IsDir() {
+		return Package{}, fmt.Errorf("%s is not a directory", absRoot)
+	}
+
+	pkg := Package{
+		Root: absRoot,
+		Slug: sanitizeSlug(filepath.Base(absRoot)),
+	}
+
+	pkg.SkillPath = firstExisting(absRoot, "SKILL.md")
+	pkg.EpicPath = firstExisting(absRoot, "EPIC.md")
+	pkg.StateCore = firstExisting(absRoot, filepath.Join("state", "core.json"))
+	pkg.StatePath = firstExisting(absRoot, "state.json")
+	pkg.Roadmap = firstExisting(absRoot, "ROADMAP.md")
+	pkg.Decisions = firstExisting(absRoot, "DECISIONS.md")
+	pkg.PolicyPath = firstExisting(absRoot, "policy.yml")
+	pkg.PlanFiles = collectFiles(filepath.Join(absRoot, "plans"))
+	pkg.LogFiles = collectFiles(filepath.Join(absRoot, "log"))
+
+	title := extractHeading(readFile(pkg.EpicPath))
+	if isPlaceholderHeading(title) {
+		title = ""
+	}
+	if title == "" {
+		title = extractHeading(readFile(pkg.SkillPath))
+		if isPlaceholderHeading(title) {
+			title = ""
+		}
+	}
+	if title == "" {
+		title = humanizeSlug(pkg.Slug)
+	}
+	pkg.Title = title
+
+	summary := extractSummary(readFile(pkg.EpicPath))
+	if summary == "" {
+		summary = extractSummary(readFile(pkg.SkillPath))
+	}
+	pkg.Summary = summary
+
+	return pkg, nil
+}
+
+func Validate(root string) (Package, []Diagnostic, error) {
+	pkg, err := Load(root)
+	if err != nil {
+		return Package{}, nil, err
+	}
+
+	var diagnostics []Diagnostic
+
+	if pkg.SkillPath == "" {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "missing_skill_md",
+			Message: "missing required file SKILL.md",
+			Path:    "SKILL.md",
+		})
+	} else {
+		diagnostics = append(diagnostics, validateMarkdown(pkg.Root, pkg.SkillPath, "SKILL.md", "skill")...)
+	}
+
+	if pkg.EpicPath == "" {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "missing_epic_md",
+			Message: "missing required file EPIC.md",
+			Path:    "EPIC.md",
+		})
+	} else {
+		diagnostics = append(diagnostics, validateMarkdown(pkg.Root, pkg.EpicPath, "EPIC.md", "epic")...)
+	}
+
+	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StatePath, "state.json")...)
+	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StateCore, filepath.Join("state", "core.json"))...)
+	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.Root, "plans"), "plans")...)
+	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.Root, "log"), "log")...)
+
+	sort.SliceStable(diagnostics, func(i, j int) bool {
+		if diagnostics[i].Level == diagnostics[j].Level {
+			return diagnostics[i].Code < diagnostics[j].Code
+		}
+		return diagnostics[i].Level < diagnostics[j].Level
+	})
+
+	return pkg, diagnostics, nil
+}
+
+func HasErrors(diagnostics []Diagnostic) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Level == "error" {
+			return true
+		}
+	}
+	return false
+}
+
+func RelativePath(root, path string) string {
+	if path == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return path
+	}
+	return filepath.ToSlash(rel)
+}
+
+func ReadState(pkg Package) (map[string]any, string, error) {
+	path := pkg.StateCore
+	if path == "" {
+		path = pkg.StatePath
+	}
+	if path == "" {
+		return nil, "", nil
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, "", err
+	}
+	return data, path, nil
+}
+
+func LookupString(data any, keys ...string) string {
+	if len(keys) == 0 || data == nil {
+		return ""
+	}
+
+	keyset := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		keyset[strings.ToLower(key)] = struct{}{}
+	}
+
+	return lookupString(data, keyset)
+}
+
+func lookupString(data any, keys map[string]struct{}) string {
+	switch value := data.(type) {
+	case map[string]any:
+		for key, nested := range value {
+			if _, ok := keys[strings.ToLower(key)]; ok {
+				if str, ok := nested.(string); ok {
+					return strings.TrimSpace(str)
+				}
+			}
+		}
+		for _, nested := range value {
+			if result := lookupString(nested, keys); result != "" {
+				return result
+			}
+		}
+	case []any:
+		for _, nested := range value {
+			if result := lookupString(nested, keys); result != "" {
+				return result
+			}
+		}
+	}
+
+	return ""
+}
+
+func ExtractPlanExcerpt(content string) string {
+	if content == "" {
+		return ""
+	}
+
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.EqualFold(trimmed, "## Now") || strings.EqualFold(trimmed, "# Now") {
+			var excerpt []string
+			for _, next := range lines[i+1:] {
+				trimmedNext := strings.TrimSpace(next)
+				if strings.HasPrefix(trimmedNext, "#") && len(excerpt) > 0 {
+					break
+				}
+				if trimmedNext == "" {
+					continue
+				}
+				excerpt = append(excerpt, trimmedNext)
+				if len(excerpt) == 4 {
+					break
+				}
+			}
+			if len(excerpt) > 0 {
+				return strings.Join(excerpt, " ")
+			}
+		}
+	}
+
+	var excerpt []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		excerpt = append(excerpt, trimmed)
+		if len(excerpt) == 4 {
+			break
+		}
+	}
+	return strings.Join(excerpt, " ")
+}
+
+func LatestFiles(paths []string, limit int) []string {
+	if len(paths) == 0 || limit <= 0 {
+		return nil
+	}
+
+	sorted := append([]string(nil), paths...)
+	sort.Strings(sorted)
+	if len(sorted) <= limit {
+		return sorted
+	}
+	return sorted[len(sorted)-limit:]
+}
+
+func firstExisting(root string, relative string) string {
+	path := filepath.Join(root, relative)
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	return ""
+}
+
+func collectFiles(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func validateMarkdown(root, path, relPath, prefix string) []Diagnostic {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "read_error_" + prefix,
+			Path:    relPath,
+			Message: err.Error(),
+		}}
+	}
+
+	content := strings.TrimSpace(string(raw))
+	if content == "" {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "empty_" + prefix,
+			Path:    relPath,
+			Message: relPath + " must not be empty",
+		}}
+	}
+
+	if extractHeading(content) == "" {
+		return []Diagnostic{{
+			Level:   "warning",
+			Code:    "missing_heading_" + prefix,
+			Path:    relPath,
+			Message: relPath + " should include a top-level heading",
+		}}
+	}
+
+	return nil
+}
+
+func validateJSONFile(root, path, relPath string) []Diagnostic {
+	if path == "" {
+		return nil
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "read_error_json",
+			Path:    relPath,
+			Message: err.Error(),
+		}}
+	}
+
+	var data any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "invalid_json",
+			Path:    relPath,
+			Message: err.Error(),
+		}}
+	}
+
+	if _, ok := data.(map[string]any); !ok {
+		return []Diagnostic{{
+			Level:   "warning",
+			Code:    "json_not_object",
+			Path:    relPath,
+			Message: relPath + " should contain a JSON object",
+		}}
+	}
+
+	return nil
+}
+
+func validateDirectory(root, path, relPath string) []Diagnostic {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "stat_error",
+			Path:    relPath,
+			Message: err.Error(),
+		}}
+	}
+	if !info.IsDir() {
+		return []Diagnostic{{
+			Level:   "error",
+			Code:    "not_directory",
+			Path:    relPath,
+			Message: relPath + " must be a directory when present",
+		}}
+	}
+	return nil
+}
+
+func readFile(path string) string {
+	if path == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func extractHeading(content string) string {
+	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "# "))
+		}
+	}
+	return ""
+}
+
+func isPlaceholderHeading(value string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	return trimmed == "epic.md" || trimmed == "skill.md"
+}
+
+func extractSummary(content string) string {
+	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		return trimmed
+	}
+	return ""
+}
+
+func sanitizeSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer(" ", "-", "_", "-", ".", "-")
+	value = replacer.Replace(value)
+	for strings.Contains(value, "--") {
+		value = strings.ReplaceAll(value, "--", "-")
+	}
+	return strings.Trim(value, "-")
+}
+
+func humanizeSlug(slug string) string {
+	parts := strings.Fields(strings.NewReplacer("-", " ", "_", " ").Replace(slug))
+	for i := range parts {
+		if len(parts[i]) == 0 {
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
+	}
+	return strings.Join(parts, " ")
+}

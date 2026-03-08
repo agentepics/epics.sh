@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/agentepics/epics.sh/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stdout, "epics CLI scaffold")
+	os.Exit(cli.NewApp("", os.Stdin, os.Stdout, os.Stderr).Run(os.Args[1:]))
 }
