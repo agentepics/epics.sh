@@ -163,16 +163,15 @@ func runScriptInstallHook(root, path string, payload []byte) error {
 }
 
 func runPromptInstallHook(root, path string, payload []byte) error {
+	body := markdownBody(path)
+	if strings.TrimSpace(body) == "" {
+		return errors.New("prompt install hook body is empty")
+	}
 	if _, ok := os.LookupEnv("ANTHROPIC_API_KEY"); !ok {
 		return errors.New("prompt install hook requires ANTHROPIC_API_KEY")
 	}
 	if _, err := exec.LookPath("claude"); err != nil {
 		return errors.New("prompt install hook requires the claude CLI")
-	}
-
-	body := markdownBody(path)
-	if strings.TrimSpace(body) == "" {
-		return errors.New("prompt install hook body is empty")
 	}
 
 	prompt := strings.TrimSpace(

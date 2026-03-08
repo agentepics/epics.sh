@@ -6,20 +6,21 @@ type CopySpec struct {
 }
 
 type Step struct {
-	Name              string
-	Program           string
-	Args              []string
-	Workdir           string
-	Stdin             string
-	Env               map[string]string
-	PassEnv           []string
-	ExpectExitCode    int
-	StdoutEquals      string
-	StdoutContains    []string
-	StdoutNotContains []string
-	StderrEquals      string
-	StderrContains    []string
-	StderrNotContains []string
+	Name                     string
+	Program                  string
+	Args                     []string
+	Workdir                  string
+	Stdin                    string
+	Env                      map[string]string
+	PassEnv                  []string
+	ExpectNoWorkspaceChanges bool
+	ExpectExitCode           int
+	StdoutEquals             string
+	StdoutContains           []string
+	StdoutNotContains        []string
+	StderrEquals             string
+	StderrContains           []string
+	StderrNotContains        []string
 }
 
 type FileAssertion struct {

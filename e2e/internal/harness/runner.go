@@ -378,7 +378,9 @@ func runStep(imageTag, imageProfile, workspaceDir, scenarioDir string, index int
 			stepLog.Log("INFO", "step:"+step.Name, "stdin", "ok", fmt.Sprintf("stdin_preview=%q", preview(step.Stdin)))
 		}
 	}
-	if _, err := snapshotWorkspace(workspaceDir, beforeManifestPath); err == nil {
+	var beforeManifest WorkspaceManifest
+	beforeManifest, err = snapshotWorkspace(workspaceDir, beforeManifestPath)
+	if err == nil {
 		if stepLog != nil {
 			stepLog.Log("INFO", "step:"+step.Name, "manifest-before", "ok", beforeManifestPath)
 		}
@@ -413,7 +415,9 @@ func runStep(imageTag, imageProfile, workspaceDir, scenarioDir string, index int
 	endedAt := time.Now().UTC()
 	result.EndedAt = endedAt.Format(time.RFC3339)
 	result.DurationMillis = endedAt.Sub(startedAt).Milliseconds()
-	if _, err := snapshotWorkspace(workspaceDir, afterManifestPath); err == nil {
+	var afterManifest WorkspaceManifest
+	afterManifest, err = snapshotWorkspace(workspaceDir, afterManifestPath)
+	if err == nil {
 		if stepLog != nil {
 			stepLog.Log("INFO", "step:"+step.Name, "manifest-after", "ok", afterManifestPath)
 		}
@@ -445,6 +449,21 @@ func runStep(imageTag, imageProfile, workspaceDir, scenarioDir string, index int
 		}
 		log.Log("ERROR", "step:"+step.Name, "assert-output", "fail", err.Error())
 		return result
+	}
+	if step.ExpectNoWorkspaceChanges {
+		if err := assertNoWorkspaceChanges(beforeManifest, afterManifest); err != nil {
+			result.Passed = false
+			result.Error = err.Error()
+			if stepLog != nil {
+				stepLog.Log("ERROR", "step:"+step.Name, "assert-workspace", "fail", err.Error())
+			}
+			log.Log("ERROR", "step:"+step.Name, "assert-workspace", "fail", err.Error())
+			return result
+		}
+		if stepLog != nil {
+			stepLog.Log("INFO", "step:"+step.Name, "assert-workspace", "ok", "workspace remained unchanged")
+		}
+		log.Log("INFO", "step:"+step.Name, "assert-workspace", "ok", "workspace remained unchanged")
 	}
 	if stepLog != nil {
 		stepLog.Log("INFO", "step:"+step.Name, "assert-output", "ok", "all stdout/stderr assertions passed")
@@ -491,6 +510,54 @@ func validateRequiredEnv(scenarios []Scenario) error {
 		parts = append(parts, fmt.Sprintf("%s (required by: %s)", key, strings.Join(scenarios, ", ")))
 	}
 	return fmt.Errorf("missing required environment for selected E2E scenarios: %s", strings.Join(parts, "; "))
+}
+
+func assertNoWorkspaceChanges(before, after WorkspaceManifest) error {
+	diff := diffWorkspaceManifests(before, after)
+	if len(diff) == 0 {
+		return nil
+	}
+	return fmt.Errorf("workspace changed unexpectedly: %s", strings.Join(diff, "; "))
+}
+
+func diffWorkspaceManifests(before, after WorkspaceManifest) []string {
+	beforeMap := make(map[string]WorkspaceManifestEntry, len(before.Entries))
+	for _, entry := range before.Entries {
+		beforeMap[entry.Path] = entry
+	}
+	afterMap := make(map[string]WorkspaceManifestEntry, len(after.Entries))
+	for _, entry := range after.Entries {
+		afterMap[entry.Path] = entry
+	}
+
+	paths := make([]string, 0, len(beforeMap)+len(afterMap))
+	seen := make(map[string]struct{}, len(beforeMap)+len(afterMap))
+	for path := range beforeMap {
+		paths = append(paths, path)
+		seen[path] = struct{}{}
+	}
+	for path := range afterMap {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	var diff []string
+	for _, path := range paths {
+		beforeEntry, beforeOK := beforeMap[path]
+		afterEntry, afterOK := afterMap[path]
+		switch {
+		case !beforeOK && afterOK:
+			diff = append(diff, fmt.Sprintf("added %s", path))
+		case beforeOK && !afterOK:
+			diff = append(diff, fmt.Sprintf("removed %s", path))
+		case beforeEntry != afterEntry:
+			diff = append(diff, fmt.Sprintf("changed %s", path))
+		}
+	}
+	return diff
 }
 
 func sanitizeDockerCommandForLog(command []string) string {
@@ -590,6 +657,13 @@ func assertWorkspace(workspaceDir string, assertions []FileAssertion, log *opera
 			log.Log("INFO", scenarioName, "assert-file-exists", "ok", assertion.Path)
 		}
 		if !assertion.MustExist {
+			if err == nil {
+				return fmt.Errorf("expected %s to be absent", assertion.Path)
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("expected %s absence check to resolve cleanly: %w", assertion.Path, err)
+			}
+			log.Log("INFO", scenarioName, "assert-file-absent", "ok", assertion.Path)
 			continue
 		}
 

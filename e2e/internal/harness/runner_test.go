@@ -88,6 +88,21 @@ func TestAssertWorkspace(t *testing.T) {
 	}
 }
 
+func TestAssertWorkspaceAbsent(t *testing.T) {
+	dir := t.TempDir()
+	log, err := newOperationLogger(filepath.Join(dir, "operations.log"))
+	if err != nil {
+		t.Fatalf("newOperationLogger: %v", err)
+	}
+	defer log.Close()
+
+	if err := assertWorkspace(dir, []FileAssertion{
+		{Path: "missing.txt", MustExist: false},
+	}, log, "test-scenario"); err != nil {
+		t.Fatalf("unexpected absence assertion error: %v", err)
+	}
+}
+
 func TestPrintList(t *testing.T) {
 	var buf bytes.Buffer
 	err := PrintList(&buf, []Scenario{
@@ -147,5 +162,32 @@ func TestValidateRequiredEnv(t *testing.T) {
 	}
 	if !strings.Contains(message, "beta") || !strings.Contains(message, "gamma") {
 		t.Fatalf("expected scenario names in error, got: %s", message)
+	}
+}
+
+func TestDiffWorkspaceManifests(t *testing.T) {
+	before := WorkspaceManifest{
+		Entries: []WorkspaceManifestEntry{
+			{Path: "a.txt", Size: 1, SHA256: "one"},
+			{Path: "dir", IsDir: true, Mode: "drwxr-xr-x"},
+		},
+	}
+	after := WorkspaceManifest{
+		Entries: []WorkspaceManifestEntry{
+			{Path: "a.txt", Size: 2, SHA256: "two"},
+			{Path: "b.txt", Size: 1, SHA256: "three"},
+		},
+	}
+
+	diff := diffWorkspaceManifests(before, after)
+	joined := strings.Join(diff, " | ")
+	if !strings.Contains(joined, "changed a.txt") {
+		t.Fatalf("expected changed file in diff, got: %v", diff)
+	}
+	if !strings.Contains(joined, "added b.txt") {
+		t.Fatalf("expected added file in diff, got: %v", diff)
+	}
+	if !strings.Contains(joined, "removed dir") {
+		t.Fatalf("expected removed dir in diff, got: %v", diff)
 	}
 }

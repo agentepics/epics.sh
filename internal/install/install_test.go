@@ -116,6 +116,77 @@ func TestRunInstallHooksRejectsUnsupportedHTTPHook(t *testing.T) {
 	}
 }
 
+func TestRunInstallHooksRejectsEmptyPromptHook(t *testing.T) {
+	root := repoRoot(t)
+	src := filepath.Join(root, "examples", "fixtures", "invalid-prompt-install-hook-epic")
+	dest := filepath.Join(t.TempDir(), "invalid-prompt-install-hook-epic")
+
+	if err := copyDir(src, dest); err != nil {
+		t.Fatalf("copy fixture: %v", err)
+	}
+
+	pkg, diagnostics, err := epic.Validate(dest)
+	if err != nil {
+		t.Fatalf("validate fixture: %v", err)
+	}
+	if epic.HasErrors(diagnostics) {
+		t.Fatalf("expected valid fixture, got diagnostics: %#v", diagnostics)
+	}
+
+	err = RunInstallHooks(pkg)
+	if err == nil {
+		t.Fatal("expected empty prompt hook error")
+	}
+	if !strings.Contains(err.Error(), "body is empty") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestInstallRollsBackOnHookFailure(t *testing.T) {
+	root := repoRoot(t)
+	src := filepath.Join(root, "examples", "fixtures", "failing-install-hook-epic")
+	cwd := t.TempDir()
+	dest := filepath.Join(cwd, ".claude", "skills", "failing-install-hook-epic")
+
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "existing.txt"), []byte("keep me\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Install(cwd, src, "claude", func(slug string) string {
+		return filepath.Join(cwd, ".claude", "skills", slug)
+	})
+	if err == nil {
+		t.Fatal("expected install to fail")
+	}
+	if !strings.Contains(err.Error(), "install hook failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The previous install should remain intact because failed installs stay in staging.
+	raw, readErr := os.ReadFile(filepath.Join(dest, "existing.txt"))
+	if readErr != nil {
+		t.Fatalf("expected previous install contents to remain: %v", readErr)
+	}
+	if string(raw) != "keep me\n" {
+		t.Fatalf("unexpected previous install contents: %q", string(raw))
+	}
+
+	if _, statErr := os.Stat(filepath.Join(dest, "runtime", "failure-sentinel.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("expected failed staging output to be absent from destination, got: %v", statErr)
+	}
+
+	installs, loadErr := os.ReadFile(filepath.Join(cwd, ".epics", "installs.json"))
+	if loadErr == nil {
+		t.Fatalf("expected no install metadata to be written, got %s", string(installs))
+	}
+	if !os.IsNotExist(loadErr) {
+		t.Fatalf("unexpected metadata error: %v", loadErr)
+	}
+}
+
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

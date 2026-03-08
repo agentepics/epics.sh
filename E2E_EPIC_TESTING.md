@@ -93,6 +93,9 @@ The hook-validation Epic fixtures live under:
 - Checks both:
   - `runtime/install.json`
   - `runtime/install-hook-output.json`
+- Then runs `epics info` and `epics resume`
+- Asserts those follow-up commands leave the workspace unchanged, proving the
+  install hook does not refire on read-only commands
 
 `claude-prompt-install-hook-fires`
 - Installs the local `prompt-install-hook-epic` fixture with a real `.md` install hook
@@ -100,6 +103,16 @@ The hook-validation Epic fixtures live under:
 - Verifies both:
   - `runtime/install.json`
   - `runtime/prompt-hook-output.json`
+- Then runs `epics info` and `epics resume`
+- Asserts those follow-up commands leave the workspace unchanged, proving the
+  prompt install hook does not refire
+
+`claude-install-hook-failure-rolls-back`
+- Installs the local `failing-install-hook-epic` fixture with a real `.sh` hook
+  that exits non-zero
+- Asserts the install fails visibly
+- Asserts no installed Epic directory is left behind
+- Asserts no `.epics/installs.json` record is written
 
 `claude-can-read-installed-epic`
 - Installs the remote Epic into the fixture project
@@ -140,6 +153,11 @@ Current implementation choices:
   public sample repo for a hook contract is too fragile
 - Separate deterministic coverage is useful for both hook styles:
   `.sh` script hooks and `.md` prompt hooks
+- For hook lifecycle assertions, “workspace unchanged after follow-up command”
+  is a stronger signal than checking one sentinel file by itself
+- Failed installs should be staged and promoted only after hooks succeed.
+  Otherwise a broken hook can wipe or partially replace a previously working
+  install before the CLI reports failure.
 - Claude prompts used in E2E should ask for tightly constrained output, ideally
   exact text or compact JSON, to keep assertions stable
 - The harness should execute explicit programs (`epics`, `claude`) instead of

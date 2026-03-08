@@ -1,6 +1,8 @@
 package install
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,39 +138,54 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 	if installedDir == "." || strings.HasPrefix(installedDir, "../") {
 		return InstallResult{}, errors.New("install destination must stay within the current workspace")
 	}
-	if err := os.RemoveAll(dest); err != nil {
+
+	stagingDir, err := newInstallStagingDir(dest)
+	if err != nil {
 		return InstallResult{}, err
 	}
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return InstallResult{}, err
-	}
+	defer os.RemoveAll(stagingDir)
 
 	switch source.Kind {
 	case "local":
-		if err := copyPackageSurface(source.Root, dest); err != nil {
+		if err := copyPackageSurface(source.Root, stagingDir); err != nil {
 			return InstallResult{}, err
 		}
 	case "remote":
-		if err := copyPackageSurface(source.Root, dest); err != nil {
+		if err := copyPackageSurface(source.Root, stagingDir); err != nil {
 			return InstallResult{}, err
 		}
 	case "registry":
-		if err := materializeRegistryEntry(dest, *source.Entry); err != nil {
+		if err := materializeRegistryEntry(stagingDir, *source.Entry); err != nil {
 			return InstallResult{}, err
 		}
 	default:
 		return InstallResult{}, fmt.Errorf("unsupported source kind %q", source.Kind)
 	}
 
-	pkg, diagnostics, err := epic.Validate(dest)
+	pkg, diagnostics, err := epic.Validate(stagingDir)
 	if err != nil {
 		return InstallResult{}, err
+	}
+	if source.Package.Slug != "" {
+		pkg.Slug = source.Package.Slug
+	}
+	if source.Package.Title != "" {
+		pkg.Title = source.Package.Title
+	}
+	if source.Package.Summary != "" {
+		pkg.Summary = source.Package.Summary
+	}
+	if source.Package.EpicID != "" {
+		pkg.EpicID = source.Package.EpicID
 	}
 	if epic.HasErrors(diagnostics) {
 		return InstallResult{Package: pkg, Diagnostics: diagnostics}, errors.New("installed package did not validate")
 	}
 
 	if err := RunInstallHooks(pkg); err != nil {
+		return InstallResult{}, err
+	}
+	if err := promoteInstall(stagingDir, dest); err != nil {
 		return InstallResult{}, err
 	}
 
@@ -252,6 +269,36 @@ func materializeRegistryEntry(dest string, entry RegistryEntry) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dest, "EPIC.md"), []byte(strings.TrimSpace(entry.EpicMD)+"\n"), 0o644)
+}
+
+func newInstallStagingDir(dest string) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return "", err
+	}
+	suffix, err := randomSuffix()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".install-"+suffix)
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func promoteInstall(stagingDir, dest string) error {
+	if err := os.RemoveAll(dest); err != nil {
+		return err
+	}
+	return os.Rename(stagingDir, dest)
+}
+
+func randomSuffix() (string, error) {
+	var raw [6]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
 }
 
 func copyPackageSurface(srcRoot, destRoot string) error {
