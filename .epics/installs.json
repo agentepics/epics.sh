@@ -1,0 +1,12 @@
+{
+  "installs": [
+    {
+      "slug": "resume-epic-install-2844b7aab8b9",
+      "title": "Resume Epic",
+      "host": "claude",
+      "source": "examples/fixtures/resume-epic",
+      "installedAt": "2026-03-08T10:52:34Z",
+      "installedDir": ".claude/skills/resume-epic"
+    }
+  ]
+}
