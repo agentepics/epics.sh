@@ -564,6 +564,13 @@ func (a App) printHostSetupResult(host string, result hostapi.Result) {
 			a.print("  - " + path)
 		}
 	}
+	if len(result.Skipped) > 0 {
+		sort.Strings(result.Skipped)
+		a.print("Skipped (content differs):")
+		for _, path := range result.Skipped {
+			a.print("  - " + path)
+		}
+	}
 }
 
 func (a App) fail(flags globalFlags, err error) int {

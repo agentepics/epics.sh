@@ -47,11 +47,11 @@ func Build(pkg epic.Package) (Result, error) {
 	logPaths := epic.LatestFiles(pkg.LogFiles, 3)
 	result.LogPaths = make([]string, 0, len(logPaths))
 	for _, logPath := range logPaths {
-		result.LogPaths = append(result.LogPaths, epic.RelativePath(pkg.Root, logPath))
 		raw, err := os.ReadFile(logPath)
 		if err != nil {
-			return Result{}, err
+			continue
 		}
+		result.LogPaths = append(result.LogPaths, epic.RelativePath(pkg.Root, logPath))
 		note := epic.ExtractPlanExcerpt(string(raw))
 		if note != "" {
 			result.RecentLogNotes = append(result.RecentLogNotes, note)

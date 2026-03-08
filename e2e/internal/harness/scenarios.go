@@ -410,7 +410,7 @@ func DefaultScenarios() []Scenario {
 					Name:           "host-setup",
 					Args:           []string{"host", "setup", "claude"},
 					ExpectExitCode: 0,
-					StdoutContains: []string{"Preserved existing:", "CLAUDE.md"},
+					StdoutContains: []string{"Skipped (content differs):", "CLAUDE.md"},
 				},
 			},
 			Files: []FileAssertion{

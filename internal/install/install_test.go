@@ -9,6 +9,7 @@ import (
 	"github.com/agentepics/epics.sh/internal/epic"
 	"github.com/agentepics/epics.sh/internal/fsutil"
 	"github.com/agentepics/epics.sh/internal/testutil"
+	"github.com/agentepics/epics.sh/internal/workspace"
 )
 
 func TestParseGitHubSource(t *testing.T) {
@@ -35,6 +36,18 @@ func TestParseGitHubSource(t *testing.T) {
 		}
 		if source.Subpath != "autonomous-coding" {
 			t.Fatalf("unexpected subpath: %s", source.Subpath)
+		}
+	})
+
+	t.Run("invalid empty owner or repo", func(t *testing.T) {
+		for _, input := range []string{
+			"github.com///",
+			"https://github.com//repo",
+			"https://github.com/owner/",
+		} {
+			if _, ok := ParseGitHubSource(input); ok {
+				t.Fatalf("expected %q to be rejected", input)
+			}
 		}
 	})
 }
@@ -185,6 +198,47 @@ func TestInstallRollsBackOnHookFailure(t *testing.T) {
 	}
 	if !os.IsNotExist(loadErr) {
 		t.Fatalf("unexpected metadata error: %v", loadErr)
+	}
+}
+
+func TestInstallRollsBackOnMetadataFailure(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	src := filepath.Join(root, "examples", "fixtures", "resume-epic")
+	cwd := t.TempDir()
+	dest := filepath.Join(cwd, ".claude", "skills", "resume-epic")
+
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "existing.txt"), []byte("keep me\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	originalSaveInstall := saveInstallRecord
+	saveInstallRecord = func(string, workspace.InstallRecord) error {
+		return os.ErrPermission
+	}
+	defer func() {
+		saveInstallRecord = originalSaveInstall
+	}()
+
+	_, err := Install(cwd, src, "claude", func(slug string) string {
+		return filepath.Join(cwd, ".claude", "skills", slug)
+	})
+	if err == nil {
+		t.Fatal("expected install to fail")
+	}
+
+	raw, readErr := os.ReadFile(filepath.Join(dest, "existing.txt"))
+	if readErr != nil {
+		t.Fatalf("expected previous install contents to be restored: %v", readErr)
+	}
+	if string(raw) != "keep me\n" {
+		t.Fatalf("unexpected previous install contents: %q", string(raw))
+	}
+
+	if _, statErr := os.Stat(filepath.Join(dest, "SKILL.md")); !os.IsNotExist(statErr) {
+		t.Fatalf("expected new install contents to be rolled back, got: %v", statErr)
 	}
 }
 

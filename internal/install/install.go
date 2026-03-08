@@ -16,6 +16,8 @@ import (
 	"github.com/agentepics/epics.sh/internal/workspace"
 )
 
+var saveInstallRecord = workspace.SaveInstall
+
 type RegistryEntry struct {
 	Slug    string `json:"slug"`
 	Title   string `json:"title"`
@@ -181,14 +183,24 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 	if err := RunInstallHooks(pkg); err != nil {
 		return InstallResult{}, err
 	}
-	if err := promoteInstall(stagingDir, dest); err != nil {
+	backupDir, err := promoteInstall(stagingDir, dest)
+	if err != nil {
 		return InstallResult{}, err
 	}
+	committed := false
+	defer func() {
+		if committed {
+			_ = cleanupPromotedInstallBackup(backupDir)
+			return
+		}
+		_ = rollbackPromotedInstall(dest, backupDir)
+	}()
 
 	record := workspace.NewInstallRecord(pkg.Slug, pkg.Title, host, input, sourceVersion(source), sourceDigest(source), installedDir)
-	if err := workspace.SaveInstall(cwd, record); err != nil {
+	if err := saveInstallRecord(cwd, record); err != nil {
 		return InstallResult{}, err
 	}
+	committed = true
 
 	return InstallResult{
 		Package:     pkg,
@@ -282,11 +294,48 @@ func newInstallStagingDir(dest string) (string, error) {
 	return path, nil
 }
 
-func promoteInstall(stagingDir, dest string) error {
-	if err := os.RemoveAll(dest); err != nil {
+func promoteInstall(stagingDir, dest string) (string, error) {
+	var backupDir string
+
+	if _, err := os.Stat(dest); err == nil {
+		suffix, err := randomSuffix()
+		if err != nil {
+			return "", err
+		}
+		backupDir = filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".backup-"+suffix)
+		if err := os.Rename(dest, backupDir); err != nil {
+			return "", err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+
+	if err := os.Rename(stagingDir, dest); err != nil {
+		_ = rollbackPromotedInstall(dest, backupDir)
+		return "", err
+	}
+
+	return backupDir, nil
+}
+
+func rollbackPromotedInstall(dest, backupDir string) error {
+	_ = os.RemoveAll(dest)
+	if backupDir == "" {
+		return nil
+	}
+	if _, err := os.Stat(backupDir); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
 		return err
 	}
-	return os.Rename(stagingDir, dest)
+	return os.Rename(backupDir, dest)
+}
+
+func cleanupPromotedInstallBackup(backupDir string) error {
+	if backupDir == "" {
+		return nil
+	}
+	return os.RemoveAll(backupDir)
 }
 
 func randomSuffix() (string, error) {

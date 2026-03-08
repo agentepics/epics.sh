@@ -3,6 +3,7 @@ package workspace
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +13,7 @@ import (
 const (
 	managedDirName = ".epics"
 	installsFile   = "installs.json"
+	installsLock   = ".installs.lock"
 )
 
 type InstallRecord struct {
@@ -45,6 +47,11 @@ func SaveInstall(cwd string, record InstallRecord) error {
 	if err := EnsureManagedDir(cwd); err != nil {
 		return err
 	}
+	release, err := acquireInstallLock(cwd)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	index, err := loadIndex(cwd)
 	if err != nil {
@@ -75,7 +82,7 @@ func SaveInstall(cwd string, record InstallRecord) error {
 		return err
 	}
 	raw = append(raw, '\n')
-	return os.WriteFile(InstallsPath(cwd), raw, 0o644)
+	return writeFileAtomically(InstallsPath(cwd), raw, 0o644)
 }
 
 func LoadInstalls(cwd string) ([]InstallRecord, error) {
@@ -136,4 +143,58 @@ func loadIndex(cwd string) (installIndex, error) {
 		index.Installs = []InstallRecord{}
 	}
 	return index, nil
+}
+
+func acquireInstallLock(cwd string) (func(), error) {
+	lockPath := filepath.Join(ManagedDir(cwd), installsLock)
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		err := os.Mkdir(lockPath, 0o755)
+		if err == nil {
+			return func() {
+				_ = os.Remove(lockPath)
+			}, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for install metadata lock %s", filepath.ToSlash(lockPath))
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+func writeFileAtomically(path string, contents []byte, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	tempFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	if _, err := tempFile.Write(contents); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Chmod(mode); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, path); err == nil {
+		return nil
+	} else {
+		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return removeErr
+		}
+		return os.Rename(tempPath, path)
+	}
 }

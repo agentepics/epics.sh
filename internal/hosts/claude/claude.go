@@ -10,6 +10,14 @@ import (
 
 type Adapter struct{}
 
+type writeState int
+
+const (
+	writeCreated writeState = iota
+	writeUnchanged
+	writeSkipped
+)
+
 func (Adapter) Name() string {
 	return "claude"
 }
@@ -28,47 +36,53 @@ func (Adapter) Setup(cwd string) (hostapi.Result, error) {
 
 	var result hostapi.Result
 	for relative, content := range files {
-		changed, err := writeIfMissingOrSame(filepath.Join(cwd, relative), content)
+		state, err := writeIfMissingOrSame(filepath.Join(cwd, relative), content)
 		if err != nil {
 			return hostapi.Result{}, err
 		}
-		if changed {
+		switch state {
+		case writeCreated:
 			result.Created = append(result.Created, filepath.ToSlash(relative))
-		} else {
+		case writeUnchanged:
 			result.Unchanged = append(result.Unchanged, filepath.ToSlash(relative))
+		case writeSkipped:
+			result.Skipped = append(result.Skipped, filepath.ToSlash(relative))
 		}
 	}
 
 	claudeMDPath := filepath.Join(cwd, "CLAUDE.md")
-	created, err := writeIfMissingOrSame(claudeMDPath, claudeMD())
+	state, err := writeIfMissingOrSame(claudeMDPath, claudeMD())
 	if err != nil {
 		return hostapi.Result{}, err
 	}
-	if created {
+	switch state {
+	case writeCreated:
 		result.Created = append(result.Created, "CLAUDE.md")
-	} else {
+	case writeUnchanged:
 		result.Unchanged = append(result.Unchanged, "CLAUDE.md")
+	case writeSkipped:
+		result.Skipped = append(result.Skipped, "CLAUDE.md")
 	}
 
 	return result, nil
 }
 
-func writeIfMissingOrSame(path, content string) (bool, error) {
+func writeIfMissingOrSame(path, content string) (writeState, error) {
 	if raw, err := os.ReadFile(path); err == nil {
 		if strings.TrimSpace(string(raw)) == strings.TrimSpace(content) {
-			return false, nil
+			return writeUnchanged, nil
 		}
 		// Additive-only: never overwrite existing host files with different content.
-		return false, nil
+		return writeSkipped, nil
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return false, err
+		return writeCreated, err
 	}
 	if err := os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o644); err != nil {
-		return false, err
+		return writeCreated, err
 	}
-	return true, nil
+	return writeCreated, nil
 }
 
 func claudeMD() string {

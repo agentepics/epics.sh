@@ -3,6 +3,7 @@ package hostapi
 type Result struct {
 	Created   []string `json:"created,omitempty"`
 	Unchanged []string `json:"unchanged,omitempty"`
+	Skipped   []string `json:"skipped,omitempty"`
 }
 
 type Adapter interface {

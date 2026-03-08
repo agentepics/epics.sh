@@ -24,7 +24,7 @@ func ParseGitHubSource(input string) (GitHubSource, bool) {
 
 	if strings.HasPrefix(trimmed, "github.com/") {
 		parts := strings.Split(strings.Trim(trimmed, "/"), "/")
-		if len(parts) < 3 {
+		if len(parts) < 3 || parts[1] == "" || parts[2] == "" {
 			return GitHubSource{}, false
 		}
 		return GitHubSource{
@@ -45,7 +45,7 @@ func ParseGitHubSource(input string) (GitHubSource, bool) {
 	}
 
 	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	if len(parts) < 2 {
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return GitHubSource{}, false
 	}
 
