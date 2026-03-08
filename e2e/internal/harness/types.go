@@ -7,12 +7,17 @@ type CopySpec struct {
 
 type Step struct {
 	Name              string
+	Program           string
 	Args              []string
+	Workdir           string
 	Stdin             string
 	Env               map[string]string
+	PassEnv           []string
 	ExpectExitCode    int
+	StdoutEquals      string
 	StdoutContains    []string
 	StdoutNotContains []string
+	StderrEquals      string
 	StderrContains    []string
 	StderrNotContains []string
 }
@@ -30,6 +35,7 @@ type Scenario struct {
 	Description  string
 	Tags         []string
 	ImageProfile string
+	RequiredEnv  []string
 	Copies       []CopySpec
 	SeedFiles    map[string]string
 	Steps        []Step
@@ -56,6 +62,7 @@ type StepResult struct {
 type ScenarioResult struct {
 	Name                 string       `json:"name"`
 	Passed               bool         `json:"passed"`
+	Skipped              bool         `json:"skipped,omitempty"`
 	ArtifactDir          string       `json:"artifactDir"`
 	ScenarioLogPath      string       `json:"scenarioLogPath,omitempty"`
 	ScenarioEventLogPath string       `json:"scenarioEventLogPath,omitempty"`
@@ -67,15 +74,16 @@ type ScenarioResult struct {
 }
 
 type Summary struct {
-	RunID           string           `json:"runId"`
-	ImageTag        string           `json:"imageTag"`
-	ArtifactRoot    string           `json:"artifactRoot"`
-	RunLogPath      string           `json:"runLogPath,omitempty"`
-	RunEventLogPath string           `json:"runEventLogPath,omitempty"`
-	PassedCount     int              `json:"passedCount"`
-	FailedCount     int              `json:"failedCount"`
-	ScenarioCount   int              `json:"scenarioCount"`
-	Results         []ScenarioResult `json:"results"`
+	RunID           string            `json:"runId"`
+	ImageTags       map[string]string `json:"imageTags,omitempty"`
+	ArtifactRoot    string            `json:"artifactRoot"`
+	RunLogPath      string            `json:"runLogPath,omitempty"`
+	RunEventLogPath string            `json:"runEventLogPath,omitempty"`
+	PassedCount     int               `json:"passedCount"`
+	FailedCount     int               `json:"failedCount"`
+	SkippedCount    int               `json:"skippedCount,omitempty"`
+	ScenarioCount   int               `json:"scenarioCount"`
+	Results         []ScenarioResult  `json:"results"`
 }
 
 type WorkspaceManifestEntry struct {

@@ -3,6 +3,142 @@ package harness
 func DefaultScenarios() []Scenario {
 	return []Scenario{
 		{
+			Name:         "claude-hello-world",
+			Description:  "Verify that Claude Code can run a headless print-mode prompt in the Claude container.",
+			Tags:         []string{"claude", "live"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Steps: []Step{
+				{
+					Name:           "claude-hello",
+					Program:        "claude",
+					Args:           []string{"-p", "Respond exactly 'Hello world!' and nothing else.", "--dangerously-skip-permissions", "--output-format", "text"},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutEquals:   "Hello world!",
+				},
+			},
+		},
+		{
+			Name:         "claude-install-remote-epic",
+			Description:  "Install a real Epic from the public GitHub repo into a small Claude workspace project.",
+			Tags:         []string{"claude", "install", "remote"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-remote",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "https://github.com/agentepics/epics/tree/main/autonomous-coding"},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Autonomous Coding for claude into .claude/skills/autonomous-coding"},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/autonomous-coding/SKILL.md", MustExist: true},
+				{Path: "project/.claude/skills/autonomous-coding/EPIC.md", MustExist: true},
+				{Path: "project/.claude/skills/autonomous-coding/state.json", MustExist: true, Contains: []string{"current_plan", "001-initial.md"}},
+				{Path: "project/.claude/skills/autonomous-coding/plans/001-initial.md", MustExist: true},
+				{Path: "project/.claude/skills/autonomous-coding/log", MustExist: true},
+				{Path: "project/.claude/skills/autonomous-coding/runtime/install.json", MustExist: true, Contains: []string{"\"trigger\": \"install\"", "\"epicId\": \"autonomous-coding\"", "hooks/install.md"}},
+				{Path: "project/.claude/commands/epics-resume.md", MustExist: true},
+				{Path: "project/.epics/installs.json", MustExist: true, Contains: []string{"autonomous-coding", "\"host\": \"claude\"", ".claude/skills/autonomous-coding"}},
+			},
+		},
+		{
+			Name:         "claude-install-hook-fires",
+			Description:  "Validate that the EPIC-spec install trigger runs during installation.",
+			Tags:         []string{"claude", "hooks"},
+			ImageProfile: "claude",
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/install-hook-epic", To: "fixtures/install-hook-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-hook-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/install-hook-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Install Hook Epic for claude into .claude/skills/install-hook-epic"},
+				},
+				{
+					Name:           "info-installed-hook-epic",
+					Workdir:        "project",
+					Args:           []string{"info", "install-hook-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Host: claude", "Installed: .claude/skills/install-hook-epic"},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/install-hook-epic/runtime/install.json", MustExist: true, Contains: []string{"\"trigger\": \"install\"", "\"epicId\": \"install-hook-epic\""}},
+				{Path: "project/.claude/skills/install-hook-epic/runtime/install-hook-output.json", MustExist: true, Contains: []string{"\"trigger\":\"install\"", "\"epic_id\":\"install-hook-epic\""}},
+			},
+		},
+		{
+			Name:         "claude-prompt-install-hook-fires",
+			Description:  "Validate that a prompt-based EPIC install hook runs through real Claude Code during installation.",
+			Tags:         []string{"claude", "hooks", "live"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/prompt-install-hook-epic", To: "fixtures/prompt-install-hook-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-prompt-hook-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/prompt-install-hook-epic"},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Prompt Install Hook Epic for claude into .claude/skills/prompt-install-hook-epic"},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/prompt-install-hook-epic/runtime/install.json", MustExist: true, Contains: []string{"\"trigger\": \"install\"", "\"epicId\": \"prompt-install-hook-epic\""}},
+				{Path: "project/.claude/skills/prompt-install-hook-epic/runtime/prompt-hook-output.json", MustExist: true, Contains: []string{"\"status\":\"ok\"", "\"trigger\":\"install\"", "\"epic_id\":\"prompt-install-hook-epic\""}},
+			},
+		},
+		{
+			Name:         "claude-can-read-installed-epic",
+			Description:  "Validate that Claude can discover and read the installed Epic from the project workspace.",
+			Tags:         []string{"claude", "live", "read"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-remote",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "https://github.com/agentepics/epics/tree/main/autonomous-coding"},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+				},
+				{
+					Name:    "claude-read-epic",
+					Program: "claude",
+					Workdir: "project",
+					Args: []string{
+						"-p",
+						"Inspect the current workspace. Look under .claude/skills and return compact JSON only in the shape {\"epics\":[{\"path\":\"...\",\"title\":\"...\",\"slug\":\"...\"}]}.",
+						"--dangerously-skip-permissions",
+						"--output-format",
+						"text",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"autonomous-coding", "Autonomous Coding", ".claude/skills/autonomous-coding"},
+				},
+			},
+		},
+		{
 			Name:         "init-empty-workspace",
 			Description:  "Initialize an empty workspace into a minimal Epic package.",
 			Tags:         []string{"cli", "core"},

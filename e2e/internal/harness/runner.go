@@ -29,6 +29,11 @@ type operationLogger struct {
 	eventFile *os.File
 }
 
+var imageProfiles = map[string]string{
+	"cli":    filepath.Join("e2e", "docker", "cli-runner.Dockerfile"),
+	"claude": filepath.Join("e2e", "docker", "claude-runner.Dockerfile"),
+}
+
 func FindRepoRoot(start string) (string, error) {
 	current, err := filepath.Abs(start)
 	if err != nil {
@@ -99,11 +104,15 @@ func SelectScenarios(all []Scenario, names []string, tag string) ([]Scenario, er
 }
 
 func (r Runner) Run(scenarios []Scenario) (Summary, error) {
+	if err := validateRequiredEnv(scenarios); err != nil {
+		return Summary{}, err
+	}
+
 	if err := ensureDocker(); err != nil {
 		return Summary{}, err
 	}
 
-	runID := time.Now().UTC().Format("20060102T150405Z")
+	runID := time.Now().UTC().Format("20060102T150405.000000000Z")
 	artifactRoot := filepath.Join(r.ArtifactsBase, runID)
 	if err := os.MkdirAll(artifactRoot, 0o755); err != nil {
 		return Summary{}, err
@@ -115,10 +124,9 @@ func (r Runner) Run(scenarios []Scenario) (Summary, error) {
 	}
 	defer runLog.Close()
 
-	imageTag := "epics-e2e:" + strings.ToLower(runID)
 	summary := Summary{
 		RunID:           runID,
-		ImageTag:        imageTag,
+		ImageTags:       map[string]string{},
 		ArtifactRoot:    artifactRoot,
 		RunLogPath:      runLog.path,
 		RunEventLogPath: runLog.eventPath,
@@ -128,19 +136,31 @@ func (r Runner) Run(scenarios []Scenario) (Summary, error) {
 	runLog.Log("INFO", "run", "artifacts", "ok", fmt.Sprintf("artifact root: %s", artifactRoot))
 	runLog.Log("INFO", "docker", "availability-check", "ok", "docker CLI and daemon are available")
 
-	buildLogPath := filepath.Join(artifactRoot, "build.log")
-	runLog.Log("INFO", "docker", "build-image", "start", fmt.Sprintf("building image %s using %s", imageTag, filepath.ToSlash(filepath.Join("e2e", "docker", "cli-runner.Dockerfile"))))
-	if err := buildImage(r.RepoRoot, imageTag, buildLogPath); err != nil {
-		runLog.Log("ERROR", "docker", "build-image", "fail", err.Error())
-		_ = writeSummary(artifactRoot, summary)
-		return summary, err
+	requiredProfiles := collectImageProfiles(scenarios)
+	for _, profile := range requiredProfiles {
+		dockerfile, ok := imageProfiles[profile]
+		if !ok {
+			err := fmt.Errorf("unknown image profile %q", profile)
+			runLog.Log("ERROR", "docker", "build-image", "fail", err.Error())
+			_ = writeSummary(artifactRoot, summary)
+			return summary, err
+		}
+		imageTag := fmt.Sprintf("epics-e2e:%s-%s", strings.ToLower(runID), profile)
+		buildLogPath := filepath.Join(artifactRoot, fmt.Sprintf("%s.build.log", profile))
+		runLog.Log("INFO", "docker", "build-image", "start", fmt.Sprintf("building image %s using %s", imageTag, filepath.ToSlash(dockerfile)))
+		if err := buildImage(r.RepoRoot, dockerfile, imageTag, buildLogPath); err != nil {
+			runLog.Log("ERROR", "docker", "build-image", "fail", err.Error())
+			_ = writeSummary(artifactRoot, summary)
+			return summary, err
+		}
+		summary.ImageTags[profile] = imageTag
+		runLog.Log("INFO", "docker", "build-image", "ok", fmt.Sprintf("image %s built successfully; build log: %s", imageTag, buildLogPath))
+		defer removeImage(imageTag)
 	}
-	runLog.Log("INFO", "docker", "build-image", "ok", fmt.Sprintf("image %s built successfully; build log: %s", imageTag, buildLogPath))
-	defer removeImage(imageTag)
 
 	for _, scenario := range scenarios {
 		runLog.Log("INFO", "scenario", scenario.Name, "start", scenario.Description)
-		result := r.runScenario(imageTag, artifactRoot, scenario, runLog)
+		result := r.runScenario(summary.ImageTags, artifactRoot, scenario, runLog)
 		if result.Passed {
 			summary.PassedCount++
 			runLog.Log("INFO", "scenario", scenario.Name, "ok", fmt.Sprintf("scenario passed; log: %s", result.ScenarioLogPath))
@@ -160,7 +180,7 @@ func (r Runner) Run(scenarios []Scenario) (Summary, error) {
 	return summary, nil
 }
 
-func (r Runner) runScenario(imageTag, artifactRoot string, scenario Scenario, runLog *operationLogger) ScenarioResult {
+func (r Runner) runScenario(imageTags map[string]string, artifactRoot string, scenario Scenario, runLog *operationLogger) ScenarioResult {
 	scenarioDir := filepath.Join(artifactRoot, sanitizeName(scenario.Name))
 	workspaceDir := filepath.Join(scenarioDir, "workspace")
 	result := ScenarioResult{
@@ -206,8 +226,15 @@ func (r Runner) runScenario(imageTag, artifactRoot string, scenario Scenario, ru
 	}
 	scenarioLog.Log("INFO", scenario.Name, "manifest-prepared", "ok", result.PreparedManifestPath)
 
+	imageTag := imageTags[scenario.ImageProfile]
+	if imageTag == "" {
+		result.Error = fmt.Sprintf("no image built for profile %q", scenario.ImageProfile)
+		scenarioLog.Log("ERROR", scenario.Name, "image-profile", "fail", result.Error)
+		return finalizeScenarioArtifacts(r.KeepArtifacts, scenarioDir, result)
+	}
+
 	for index, step := range scenario.Steps {
-		stepResult := runStep(imageTag, workspaceDir, scenarioDir, index, step, scenarioLog)
+		stepResult := runStep(imageTag, scenario.ImageProfile, workspaceDir, scenarioDir, index, step, scenarioLog)
 		result.Steps = append(result.Steps, stepResult)
 		writeStepArtifacts(scenarioDir, index, stepResult)
 		if !stepResult.Passed {
@@ -276,19 +303,47 @@ func prepareWorkspace(repoRoot, workspaceDir string, scenario Scenario, log *ope
 	return nil
 }
 
-func runStep(imageTag, workspaceDir, scenarioDir string, index int, step Step, log *operationLogger) StepResult {
-	command := append([]string{"epics"}, step.Args...)
-	dockerCommand := []string{"docker", "run", "--rm", "-v", workspaceDir + ":/workspace", "-w", "/workspace"}
+func runStep(imageTag, imageProfile, workspaceDir, scenarioDir string, index int, step Step, log *operationLogger) StepResult {
+	program := step.Program
+	if program == "" {
+		program = "epics"
+	}
+	command := append([]string{program}, step.Args...)
+	containerWorkdir := "/workspace"
+	if step.Workdir != "" {
+		containerWorkdir = filepath.ToSlash(filepath.Join("/workspace", filepath.FromSlash(step.Workdir)))
+	}
+	containerEnv := make(map[string]string, len(step.Env)+2)
+	for key, value := range step.Env {
+		containerEnv[key] = value
+	}
+	if imageProfile == "claude" {
+		homeHostPath := filepath.Join(workspaceDir, ".claude-home")
+		_ = os.MkdirAll(homeHostPath, 0o755)
+		if _, ok := containerEnv["HOME"]; !ok {
+			containerEnv["HOME"] = "/workspace/.claude-home"
+		}
+		if _, ok := containerEnv["XDG_CONFIG_HOME"]; !ok {
+			containerEnv["XDG_CONFIG_HOME"] = "/workspace/.claude-home/.config"
+		}
+	}
+	dockerCommand := []string{"docker", "run", "--rm", "-v", workspaceDir + ":/workspace", "-w", containerWorkdir}
 	if step.Stdin != "" {
 		dockerCommand = append(dockerCommand, "-i")
 	}
 	if uid, gid, ok := currentUserIDs(); ok {
 		dockerCommand = append(dockerCommand, "--user", uid+":"+gid)
 	}
-	for _, key := range sortedEnvKeys(step.Env) {
-		dockerCommand = append(dockerCommand, "-e", key+"="+step.Env[key])
+	for _, key := range sortedEnvKeys(containerEnv) {
+		dockerCommand = append(dockerCommand, "-e", key+"="+containerEnv[key])
+	}
+	for _, key := range step.PassEnv {
+		if value, ok := os.LookupEnv(key); ok {
+			dockerCommand = append(dockerCommand, "-e", key+"="+value)
+		}
 	}
 	dockerCommand = append(dockerCommand, imageTag)
+	dockerCommand = append(dockerCommand, program)
 	dockerCommand = append(dockerCommand, step.Args...)
 
 	cmd := exec.Command(dockerCommand[0], dockerCommand[1:]...)
@@ -308,9 +363,13 @@ func runStep(imageTag, workspaceDir, scenarioDir string, index int, step Step, l
 		defer stepLog.Close()
 		stepLog.Log("INFO", "step:"+step.Name, "start", "ok", fmt.Sprintf("starting step %s", step.Name))
 		stepLog.Log("INFO", "step:"+step.Name, "command", "ok", strings.Join(command, " "))
-		stepLog.Log("INFO", "step:"+step.Name, "docker-command", "ok", strings.Join(dockerCommand, " "))
-		if len(step.Env) > 0 {
-			stepLog.Log("INFO", "step:"+step.Name, "env", "ok", fmt.Sprintf("env=%v", step.Env))
+		stepLog.Log("INFO", "step:"+step.Name, "docker-command", "ok", sanitizeDockerCommandForLog(dockerCommand))
+		stepLog.Log("INFO", "step:"+step.Name, "workdir", "ok", containerWorkdir)
+		if len(containerEnv) > 0 {
+			stepLog.Log("INFO", "step:"+step.Name, "env", "ok", formatEnvForLog(containerEnv))
+		}
+		if len(step.PassEnv) > 0 {
+			stepLog.Log("INFO", "step:"+step.Name, "pass-env", "ok", fmt.Sprintf("pass_env=%v", step.PassEnv))
 		}
 		if step.Stdin != "" {
 			stepLog.Log("INFO", "step:"+step.Name, "stdin", "ok", fmt.Sprintf("stdin_preview=%q", preview(step.Stdin)))
@@ -402,7 +461,84 @@ func sortedEnvKeys(values map[string]string) []string {
 	return keys
 }
 
+func validateRequiredEnv(scenarios []Scenario) error {
+	requirements := make(map[string][]string)
+	for _, scenario := range scenarios {
+		for _, key := range scenario.RequiredEnv {
+			if _, ok := os.LookupEnv(key); ok {
+				continue
+			}
+			requirements[key] = append(requirements[key], scenario.Name)
+		}
+	}
+	if len(requirements) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(requirements))
+	for key := range requirements {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, key := range keys {
+		scenarios := requirements[key]
+		sort.Strings(scenarios)
+		parts = append(parts, fmt.Sprintf("%s (required by: %s)", key, strings.Join(scenarios, ", ")))
+	}
+	return fmt.Errorf("missing required environment for selected E2E scenarios: %s", strings.Join(parts, "; "))
+}
+
+func sanitizeDockerCommandForLog(command []string) string {
+	sanitized := make([]string, 0, len(command))
+	for i := 0; i < len(command); i++ {
+		part := command[i]
+		if part == "-e" && i+1 < len(command) {
+			sanitized = append(sanitized, part, sanitizeEnvAssignment(command[i+1]))
+			i++
+			continue
+		}
+		sanitized = append(sanitized, part)
+	}
+	return strings.Join(sanitized, " ")
+}
+
+func formatEnvForLog(values map[string]string) string {
+	parts := make([]string, 0, len(values))
+	for _, key := range sortedEnvKeys(values) {
+		parts = append(parts, sanitizeEnvAssignment(key+"="+values[key]))
+	}
+	return fmt.Sprintf("env=[%s]", strings.Join(parts, " "))
+}
+
+func sanitizeEnvAssignment(value string) string {
+	key, raw, ok := strings.Cut(value, "=")
+	if !ok {
+		return value
+	}
+	if isSensitiveEnvKey(key) {
+		return key + "=<redacted>"
+	}
+	return key + "=" + raw
+}
+
+func isSensitiveEnvKey(key string) bool {
+	upper := strings.ToUpper(key)
+	return strings.Contains(upper, "KEY") ||
+		strings.Contains(upper, "TOKEN") ||
+		strings.Contains(upper, "SECRET") ||
+		strings.Contains(upper, "PASSWORD") ||
+		strings.Contains(upper, "AUTH")
+}
+
 func assertOutput(step Step, stdout, stderr string, scenarioLog, stepLog *operationLogger, stepName string) error {
+	if step.StdoutEquals != "" {
+		if strings.TrimSpace(stdout) != strings.TrimSpace(step.StdoutEquals) {
+			return fmt.Errorf("stdout did not equal expected value %q; actual preview=%q", step.StdoutEquals, preview(stdout))
+		}
+		logAssertion(stepLog, scenarioLog, stepName, "stdout-equals", fmt.Sprintf("expected=%q actual_preview=%q", step.StdoutEquals, preview(stdout)))
+	}
 	for _, needle := range step.StdoutContains {
 		if !strings.Contains(stdout, needle) {
 			return fmt.Errorf("stdout did not contain expected substring %q; actual preview=%q", needle, preview(stdout))
@@ -420,6 +556,12 @@ func assertOutput(step Step, stdout, stderr string, scenarioLog, stepLog *operat
 			return fmt.Errorf("stderr did not contain expected substring %q; actual preview=%q", needle, preview(stderr))
 		}
 		logAssertion(stepLog, scenarioLog, stepName, "stderr-contains", fmt.Sprintf("expected=%q actual_preview=%q", needle, preview(stderr)))
+	}
+	if step.StderrEquals != "" {
+		if strings.TrimSpace(stderr) != strings.TrimSpace(step.StderrEquals) {
+			return fmt.Errorf("stderr did not equal expected value %q; actual preview=%q", step.StderrEquals, preview(stderr))
+		}
+		logAssertion(stepLog, scenarioLog, stepName, "stderr-equals", fmt.Sprintf("expected=%q actual_preview=%q", step.StderrEquals, preview(stderr)))
 	}
 	for _, needle := range step.StderrNotContains {
 		if strings.Contains(stderr, needle) {
@@ -479,8 +621,8 @@ func assertWorkspace(workspaceDir string, assertions []FileAssertion, log *opera
 	return nil
 }
 
-func buildImage(repoRoot, imageTag, buildLogPath string) error {
-	args := []string{"build", "-f", filepath.Join("e2e", "docker", "cli-runner.Dockerfile"), "-t", imageTag, "."}
+func buildImage(repoRoot, dockerfile, imageTag, buildLogPath string) error {
+	args := []string{"build", "-f", dockerfile, "-t", imageTag, "."}
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()
@@ -516,6 +658,35 @@ func currentUserIDs() (string, string, bool) {
 		return "", "", false
 	}
 	return uid, gid, true
+}
+
+func collectImageProfiles(scenarios []Scenario) []string {
+	seen := map[string]struct{}{}
+	var profiles []string
+	for _, scenario := range scenarios {
+		profile := scenario.ImageProfile
+		if profile == "" {
+			profile = "cli"
+		}
+		if _, ok := seen[profile]; ok {
+			continue
+		}
+		seen[profile] = struct{}{}
+		profiles = append(profiles, profile)
+	}
+	sort.Strings(profiles)
+	return profiles
+}
+
+func missingEnvVars(keys []string) []string {
+	var missing []string
+	for _, key := range keys {
+		if _, ok := os.LookupEnv(key); !ok {
+			missing = append(missing, key)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 func mustCombinedOutput(name string, args ...string) []byte {

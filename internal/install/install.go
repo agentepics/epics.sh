@@ -41,6 +41,7 @@ type ResolvedSource struct {
 	Root    string
 	Entry   *RegistryEntry
 	Package epic.Package
+	Cleanup func() error
 }
 
 func Resolve(cwd, input string) (ResolvedSource, error) {
@@ -79,6 +80,28 @@ func Resolve(cwd, input string) (ResolvedSource, error) {
 		}, nil
 	}
 
+	remote, ok := ParseGitHubSource(input)
+	if ok {
+		root, cleanup, err := CloneGitHubSource(remote)
+		if err != nil {
+			return ResolvedSource{}, err
+		}
+
+		pkg, _, err := epic.Validate(root)
+		if err != nil {
+			_ = cleanup()
+			return ResolvedSource{}, err
+		}
+
+		return ResolvedSource{
+			Kind:    "remote",
+			Input:   input,
+			Root:    root,
+			Package: pkg,
+			Cleanup: cleanup,
+		}, nil
+	}
+
 	return ResolvedSource{}, fmt.Errorf("could not resolve source %q as a local directory or registry entry", input)
 }
 
@@ -86,6 +109,9 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 	source, err := Resolve(cwd, input)
 	if err != nil {
 		return InstallResult{}, err
+	}
+	if source.Cleanup != nil {
+		defer source.Cleanup()
 	}
 	if installDir == nil {
 		return InstallResult{}, errors.New("install destination is not configured")
@@ -122,6 +148,10 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 		if err := copyPackageSurface(source.Root, dest); err != nil {
 			return InstallResult{}, err
 		}
+	case "remote":
+		if err := copyPackageSurface(source.Root, dest); err != nil {
+			return InstallResult{}, err
+		}
 	case "registry":
 		if err := materializeRegistryEntry(dest, *source.Entry); err != nil {
 			return InstallResult{}, err
@@ -136,6 +166,10 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 	}
 	if epic.HasErrors(diagnostics) {
 		return InstallResult{Package: pkg, Diagnostics: diagnostics}, errors.New("installed package did not validate")
+	}
+
+	if err := RunInstallHooks(pkg); err != nil {
+		return InstallResult{}, err
 	}
 
 	record := workspace.NewInstallRecord(pkg.Slug, pkg.Title, host, input, sourceVersion(source), sourceDigest(source), installedDir)

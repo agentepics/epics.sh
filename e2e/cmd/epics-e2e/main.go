@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/agentepics/epics.sh/e2e/internal/harness"
 )
@@ -27,6 +30,10 @@ func run(args []string) int {
 	}
 	repoRoot, err := harness.FindRepoRoot(cwd)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
+	if err := loadEnvFile(filepath.Join(repoRoot, ".env.e2e")); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
@@ -101,7 +108,9 @@ func runScenarios(repoRoot string, args []string) int {
 
 func printSummary(summary harness.Summary) {
 	fmt.Fprintf(os.Stdout, "Run ID: %s\n", summary.RunID)
-	fmt.Fprintf(os.Stdout, "Image: %s\n", summary.ImageTag)
+	for _, profile := range sortedProfiles(summary.ImageTags) {
+		fmt.Fprintf(os.Stdout, "Image (%s): %s\n", profile, summary.ImageTags[profile])
+	}
 	fmt.Fprintf(os.Stdout, "Artifacts: %s\n", summary.ArtifactRoot)
 	if summary.RunLogPath != "" {
 		fmt.Fprintf(os.Stdout, "Run log: %s\n", summary.RunLogPath)
@@ -111,7 +120,9 @@ func printSummary(summary harness.Summary) {
 	}
 	for _, result := range summary.Results {
 		status := "PASS"
-		if !result.Passed {
+		if result.Skipped {
+			status = "SKIP"
+		} else if !result.Passed {
 			status = "FAIL"
 		}
 		fmt.Fprintf(os.Stdout, "%s %s\n", status, result.Name)
@@ -125,10 +136,54 @@ func printSummary(summary harness.Summary) {
 			fmt.Fprintf(os.Stdout, "  %s\n", result.Error)
 		}
 	}
-	fmt.Fprintf(os.Stdout, "Passed: %d Failed: %d\n", summary.PassedCount, summary.FailedCount)
+	fmt.Fprintf(os.Stdout, "Passed: %d Failed: %d Skipped: %d\n", summary.PassedCount, summary.FailedCount, summary.SkippedCount)
 }
 
 func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: epics-e2e <command>")
 	fmt.Fprintln(os.Stderr, "Commands: list, run")
+}
+
+func loadEnvFile(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return fmt.Errorf("invalid env line in %s: %q", path, line)
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if key == "" {
+			return fmt.Errorf("invalid env key in %s: %q", path, line)
+		}
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
+}
+
+func sortedProfiles(values map[string]string) []string {
+	profiles := make([]string, 0, len(values))
+	for profile := range values {
+		profiles = append(profiles, profile)
+	}
+	sort.Strings(profiles)
+	return profiles
 }

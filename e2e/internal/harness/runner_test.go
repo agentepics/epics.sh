@@ -117,3 +117,24 @@ func TestSnapshotWorkspace(t *testing.T) {
 		t.Fatalf("expected manifest file: %v", err)
 	}
 }
+
+func TestValidateRequiredEnv(t *testing.T) {
+	t.Setenv("PRESENT_KEY", "value")
+
+	err := validateRequiredEnv([]Scenario{
+		{Name: "alpha", RequiredEnv: []string{"PRESENT_KEY"}},
+		{Name: "beta", RequiredEnv: []string{"MISSING_KEY"}},
+		{Name: "gamma", RequiredEnv: []string{"MISSING_KEY", "ANOTHER_MISSING_KEY"}},
+	})
+	if err == nil {
+		t.Fatal("expected missing env error")
+	}
+
+	message := err.Error()
+	if !strings.Contains(message, "MISSING_KEY") || !strings.Contains(message, "ANOTHER_MISSING_KEY") {
+		t.Fatalf("expected missing keys in error, got: %s", message)
+	}
+	if !strings.Contains(message, "beta") || !strings.Contains(message, "gamma") {
+		t.Fatalf("expected scenario names in error, got: %s", message)
+	}
+}

@@ -20,6 +20,7 @@ type Diagnostic struct {
 type Package struct {
 	Root       string   `json:"root"`
 	Slug       string   `json:"slug"`
+	EpicID     string   `json:"epicId,omitempty"`
 	Title      string   `json:"title"`
 	Summary    string   `json:"summary,omitempty"`
 	SkillPath  string   `json:"skillPath,omitempty"`
@@ -61,6 +62,13 @@ func Load(root string) (Package, error) {
 	pkg.PolicyPath = firstExisting(absRoot, "policy.yml")
 	pkg.PlanFiles = collectFiles(filepath.Join(absRoot, "plans"))
 	pkg.LogFiles = collectFiles(filepath.Join(absRoot, "log"))
+
+	if frontmatter := parseFrontmatter(readFile(pkg.EpicPath)); len(frontmatter) > 0 {
+		pkg.EpicID = strings.TrimSpace(frontmatter["id"])
+	}
+	if pkg.EpicID == "" {
+		pkg.EpicID = pkg.Slug
+	}
 
 	title := extractHeading(readFile(pkg.EpicPath))
 	if isPlaceholderHeading(title) {
@@ -421,6 +429,30 @@ func extractSummary(content string) string {
 		return trimmed
 	}
 	return ""
+}
+
+func parseFrontmatter(content string) map[string]string {
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+
+	values := map[string]string{}
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			return values
+		}
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(trimmed, ":")
+		if !ok {
+			continue
+		}
+		values[strings.TrimSpace(strings.ToLower(key))] = strings.Trim(strings.TrimSpace(value), `"'`)
+	}
+	return nil
 }
 
 func sanitizeSlug(value string) string {
