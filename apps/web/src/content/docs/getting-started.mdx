@@ -1,0 +1,37 @@
+---
+title: Getting Started
+description: Install the CLI, pick an Epic, and start with the guided installer flow.
+section: Guides
+order: 10
+navTitle: Getting Started
+---
+
+Agent Epics are reusable workflows for coding agents. They are meant for work
+that lasts longer than one turn: implementation tracks, research passes, release
+operations, migration plans, and other tasks that benefit from persistent state.
+
+## Start path
+
+1. Install the CLI.
+2. Pick an Epic from the directory.
+3. Run the install command from your project folder so the current workspace becomes the Epic context.
+4. Pass `--host <host>` for automation, or let `epics install` ask which host to target.
+
+```bash
+curl -fsSL https://epics.sh/install.sh | sh -s -- github.com/agentepics/epics/autonomous-coding
+```
+
+Inside a project where Claude Code is the selected host, the installed Epic is
+copied into `.claude/skills/<slug>/`. The CLI still keeps its own metadata under
+`.epics/`, but that is not the canonical package location.
+
+## Supported hosts
+
+The package stays portable. Supported hosts all meet the same autonomy contract
+through the `epics` CLI and adapter layer, but the CLI does not try to infer the
+host from project files. If `--host` is omitted, it prompts instead of guessing.
+
+## Ready to build your own?
+
+Once you are comfortable running Epics, head over to
+[Creating Epics](/docs/creating-epics) to scaffold your own from scratch.

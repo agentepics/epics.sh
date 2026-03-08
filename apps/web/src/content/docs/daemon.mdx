@@ -1,0 +1,63 @@
+---
+title: Daemon Architecture
+description: Design rationale for epicsd, an optional runtime control plane for Epics.
+section: Concepts
+order: 35
+navTitle: Daemon
+---
+
+The `epicsd` daemon is a planned optional runtime sidecar. It is not required
+for basic Epic usage — the CLI handles install, validate, resume, and doctor
+without it. The daemon becomes valuable when you need runtime features that a
+plain CLI cannot own well by itself.
+
+## Why a daemon
+
+Each host CLI has different hooks, extension APIs, and service models. A daemon
+reduces that inconsistency by centralizing runtime ownership:
+
+- **Cron execution** — persisted schedules, missed-run policy, overlap control,
+  locks, and structured run history
+- **Hook dispatch** — one engine fires lifecycle hooks regardless of which host
+  adapter triggered the event
+- **Serialized writes** — per-Epic locks, atomic writes, and monotonic event
+  sequencing for state and logs
+- **Background jobs** — supervised job execution with status tracking and log
+  retrieval
+- **Cross-adapter bridging** — host adapters become thin clients that trigger or
+  query `epicsd` rather than embedding runtime logic
+
+## Phased rollout
+
+| Phase | Scope |
+|---|---|
+| **A — No daemon** | CLI-only: install, validate, resume, doctor, host setup, `epics cron validate` |
+| **B — Optional daemon** | Local sidecar for cron, hooks, background jobs, runtime status |
+| **C — Daemon-backed adapters** | Host adapters delegate runtime concerns to `epicsd` |
+
+## Security posture
+
+- Local-only by default — no network listener
+- Remote access is opt-in, transport is pluggable
+- Auth required before any control-plane access
+- Fail-closed when auth or transport is unavailable
+
+## Operator interface
+
+Once the daemon ships, `epics` gains operational commands:
+
+```bash
+epics daemon status
+epics daemon logs
+epics daemon install    # register as a user service
+epics daemon repair
+```
+
+Combined with the existing `epics doctor`, this makes the runtime observable and
+debuggable rather than implicit.
+
+## What it does not replace
+
+The daemon does not replace host CLIs. It unifies the runtime layer underneath
+them. An Epic package remains portable and valid without a daemon — `epicsd`
+adds runtime capabilities on top of the portable baseline.

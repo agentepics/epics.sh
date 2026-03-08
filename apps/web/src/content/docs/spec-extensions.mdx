@@ -1,0 +1,64 @@
+---
+title: Spec Extensions
+description: Optional runtime extensions that build on the portable Epic baseline.
+section: Concepts
+order: 36
+navTitle: Spec Extensions
+---
+
+The core Epic model is file-portable. These files define the baseline:
+
+```
+SKILL.md    EPIC.md    state.json    plans/
+log/        hooks/     cron.d/       policy.yml
+ROADMAP.md  DECISIONS.md
+```
+
+Everything in this page describes **optional runtime extensions** — features
+that only become meaningful when a capable executor like `epicsd` is running.
+They are never required for a valid Epic package.
+
+## Candidate extensions
+
+### Route bindings
+
+Stable ingress identities that map external channels (IM chats, webhooks, cron
+triggers, dashboard sessions) to a daemon-owned Epic target without being tied
+to one host session.
+
+### Adapter selection policy
+
+Declarative rules for choosing among installed host adapters: prefer Claude for
+interactive work, Codex for batch execution, Gemini when hook-capable execution
+is needed.
+
+### Run ledger semantics
+
+Normalized records for invocations: run IDs, trigger source, adapter used,
+timestamps, idempotency keys, retry counts, exit results, and log linkage.
+
+### Capability declarations
+
+Machine-readable metadata declaring what runtime features an Epic expects or can
+use — cron execution, webhook ingress, cross-adapter failover, approval
+mediation.
+
+### Locking and concurrency policy
+
+Declarative overlap and serialization rules: single-flight, queue, replace,
+parallel, per-route or per-Epic locks.
+
+## Guardrails
+
+These rules protect the portable core if extensions are ever promoted:
+
+1. **Core Epics remain valid without daemon support** — no daemon, network
+   listener, or cross-adapter routing required
+2. **Executor metadata stays separate** — live session pointers, locks, and
+   route bindings belong in runtime storage, not portable Epic files
+3. **Unsupported features are surfaced explicitly** — executors must declare when
+   they cannot honor an optional capability, never silently downgrade
+4. **Host-specific details stay out of the spec** — portable concepts use
+   generic terms (route, adapter, executor, trigger, run)
+5. **Multi-host routing stays optional** — cross-adapter ingress is a
+   high-capability feature, not a baseline assumption

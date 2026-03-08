@@ -1,0 +1,81 @@
+---
+title: CLI Reference
+description: Complete command reference for the epics CLI.
+section: Manual
+order: 55
+navTitle: CLI Reference
+---
+
+All commands support the global flags `--json`, `--quiet`, and `--yes`.
+
+## epics init
+
+Scaffold a new Epic package in the current directory. Creates `SKILL.md` and
+`EPIC.md` with starter templates. Existing files are preserved.
+
+```bash
+epics init
+```
+
+## epics install
+
+Install an Epic from a repository path or local directory. The package is copied
+into the host-local project path (e.g. `.claude/skills/<slug>/` for Claude).
+CLI metadata is recorded in `.epics/installs.json`.
+
+```bash
+epics install <repo-path>
+epics install --host claude <repo-path>
+```
+
+If `--host` is omitted in an interactive terminal, the CLI prompts for a
+supported host. In non-interactive environments it fails instead of guessing.
+
+## epics validate
+
+Validate package metadata and supporting files. Returns diagnostics with level
+and path for each issue found.
+
+```bash
+epics validate
+epics validate <path>
+```
+
+## epics info
+
+Display package metadata and install record for an Epic. Accepts an optional
+path or installed slug.
+
+```bash
+epics info
+epics info <path-or-slug>
+```
+
+## epics resume
+
+Re-enter a long-running workflow without reconstructing context from scratch.
+Builds a resume context from the package state, plans, and logs.
+
+```bash
+epics resume
+epics resume <path-or-slug>
+```
+
+## epics doctor
+
+Run workspace health checks. Reports status for each check with pass/fail and a
+diagnostic message.
+
+```bash
+epics doctor
+```
+
+## epics host setup
+
+Configure the current workspace for a specific host. Creates host-specific files
+and preserves any existing configuration.
+
+```bash
+epics host setup <host>
+epics host setup claude
+```

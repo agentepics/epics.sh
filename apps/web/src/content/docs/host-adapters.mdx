@@ -1,0 +1,51 @@
+---
+title: Host Adapters
+description: How the adapter layer brings each supported host CLI up to the same autonomy contract.
+section: Concepts
+order: 25
+navTitle: Host Adapters
+---
+
+The `epics` CLI is the canonical control surface. Host adapters are thin layers
+that connect each supported coding agent CLI to the Epic runtime without
+embedding deep runtime logic inside the host itself.
+
+## Design split
+
+The adapter model keeps a clean separation:
+
+- **Host adapter** — transport and UX (discovery, context injection, command
+  wrappers, lifecycle hooks, MCP wiring)
+- **`epics` CLI** — control surface (install, validate, resume, doctor)
+- **Epic files** — portable state and workflow definition
+
+Host-specific files like `CLAUDE.md`, `GEMINI.md`, or `AGENTS.md` are used only
+for discovery and guidance injection, not for defining Epic behavior.
+
+## Supported hosts
+
+| Host | Strongest surfaces | Main constraint |
+|---|---|---|
+| Claude Code | `CLAUDE.md`, slash commands, hooks, subagents, MCP | Powerful but Claude-specific patterns can create lock-in |
+| Gemini CLI | `GEMINI.md`, custom commands, hooks, extensions, MCP | Rich extension system, but host-specific and JSON/TOML-driven |
+| OpenCode | `AGENTS.md`, commands, plugins, agents, MCP, server modes | Broadest programmatic surface, more implementation work per integration |
+
+## Supported-host rule
+
+`epics.sh` only offers hosts that can be brought to the same level of autonomy
+through the `epics` CLI and adapter layer. If a host cannot meet that bar, it
+stays in research and does not appear as a supported option.
+
+## Adapter strategy
+
+Each adapter follows the same pattern:
+
+1. Use host instruction files for discovery and context
+2. Use `epics` CLI as the operational surface
+3. Wire host hooks to Epic lifecycle events
+4. Use MCP for structured tool integration
+5. Let the future `epicsd` daemon own runtime semantics like cron, hook
+   dispatch, and locking
+
+This keeps the Epic package portable while letting each host provide its native
+UX on top.
