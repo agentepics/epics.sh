@@ -34,6 +34,15 @@ go run ./e2e/cmd/epics-e2e run --tag claude --keep-artifacts
 If the key is absent, the selected E2E run now fails during preflight with a
 clear error. It does not skip Claude scenarios.
 
+In CI, the repo uses two lanes:
+
+- the main CI job runs `--exclude-tag live`
+- the live Claude job runs `--tag live`
+
+The live Claude job runs on `push` and `workflow_dispatch`, not on
+`pull_request`, so forked PRs do not create a fake-green signal from missing
+secrets.
+
 Official references used for this setup:
 
 - Claude Code settings and environment variables:
@@ -150,6 +159,12 @@ Claude scenarios only:
 
 ```bash
 go run ./e2e/cmd/epics-e2e run --tag claude --keep-artifacts
+```
+
+All non-live scenarios:
+
+```bash
+go run ./e2e/cmd/epics-e2e run --exclude-tag live --keep-artifacts
 ```
 
 Single scenario:

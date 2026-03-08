@@ -22,7 +22,7 @@ func DefaultScenarios() []Scenario {
 		{
 			Name:         "claude-install-remote-epic",
 			Description:  "Install a real Epic from the public GitHub repo into a small Claude workspace project.",
-			Tags:         []string{"claude", "install", "remote"},
+			Tags:         []string{"claude", "install", "remote", "live"},
 			ImageProfile: "claude",
 			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
 			Copies: []CopySpec{

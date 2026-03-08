@@ -46,12 +46,49 @@ jobs:
         run: npm run build
 
       - name: Run Docker E2E harness
-        run: go run ./e2e/cmd/epics-e2e run --keep-artifacts
+        run: go run ./e2e/cmd/epics-e2e run --exclude-tag live --keep-artifacts
 
       - name: Upload E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts
+          name: e2e-artifacts-core
+          path: .e2e-artifacts/
+          if-no-files-found: ignore
+
+  live-claude-e2e:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Require Claude E2E secret
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY}" ]; then
+            echo "ANTHROPIC_API_KEY is required for the live Claude E2E lane." >&2
+            exit 1
+          fi
+
+      - name: Run live Claude E2E harness
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: go run ./e2e/cmd/epics-e2e run --tag live --keep-artifacts
+
+      - name: Upload live E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-live
           path: .e2e-artifacts/
           if-no-files-found: ignore

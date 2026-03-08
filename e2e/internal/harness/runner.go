@@ -56,7 +56,7 @@ func FindRepoRoot(start string) (string, error) {
 	return "", fmt.Errorf("could not find repo root from %s", start)
 }
 
-func SelectScenarios(all []Scenario, names []string, tag string) ([]Scenario, error) {
+func SelectScenarios(all []Scenario, names []string, tag, excludeTag string) ([]Scenario, error) {
 	nameSet := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		if name == "" {
@@ -73,6 +73,9 @@ func SelectScenarios(all []Scenario, names []string, tag string) ([]Scenario, er
 			}
 		}
 		if tag != "" && !contains(scenario.Tags, tag) {
+			continue
+		}
+		if excludeTag != "" && contains(scenario.Tags, excludeTag) {
 			continue
 		}
 		selected = append(selected, scenario)

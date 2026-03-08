@@ -40,7 +40,7 @@ func TestSelectScenarios(t *testing.T) {
 		{Name: "beta", Tags: []string{"host"}},
 	}
 
-	selected, err := SelectScenarios(all, []string{"beta"}, "")
+	selected, err := SelectScenarios(all, []string{"beta"}, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,12 +48,23 @@ func TestSelectScenarios(t *testing.T) {
 		t.Fatalf("unexpected selection: %#v", selected)
 	}
 
-	selected, err = SelectScenarios(all, nil, "core")
+	selected, err = SelectScenarios(all, nil, "core", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(selected) != 1 || selected[0].Name != "alpha" {
 		t.Fatalf("unexpected tag selection: %#v", selected)
+	}
+
+	selected, err = SelectScenarios([]Scenario{
+		{Name: "alpha", Tags: []string{"core"}},
+		{Name: "beta", Tags: []string{"core", "live"}},
+	}, nil, "core", "live")
+	if err != nil {
+		t.Fatalf("unexpected exclude-tag error: %v", err)
+	}
+	if len(selected) != 1 || selected[0].Name != "alpha" {
+		t.Fatalf("unexpected exclude-tag selection: %#v", selected)
 	}
 }
 

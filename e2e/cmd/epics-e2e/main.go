@@ -63,6 +63,7 @@ func runScenarios(repoRoot string, args []string) int {
 
 	scenarioFlag := fs.String("scenario", "", "comma-separated scenario names")
 	tagFlag := fs.String("tag", "", "run only scenarios with the given tag")
+	excludeTagFlag := fs.String("exclude-tag", "", "exclude scenarios with the given tag")
 	keepArtifacts := fs.Bool("keep-artifacts", false, "retain passing scenario artifacts")
 	jsonOutput := fs.Bool("json", false, "emit JSON summary")
 	artifactsDir := fs.String("artifacts-dir", filepath.Join(repoRoot, ".e2e-artifacts"), "artifact output directory")
@@ -71,7 +72,7 @@ func runScenarios(repoRoot string, args []string) int {
 		return 1
 	}
 
-	selected, err := harness.SelectScenarios(harness.DefaultScenarios(), harness.SplitList(*scenarioFlag), *tagFlag)
+	selected, err := harness.SelectScenarios(harness.DefaultScenarios(), harness.SplitList(*scenarioFlag), *tagFlag, *excludeTagFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
