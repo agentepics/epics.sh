@@ -1,0 +1,30 @@
+{
+  "slug": "autonomous-planning",
+  "title": "Autonomous Planning",
+  "summary": "Run a daily planning loop that inventories objectives, reviews active Epics, and creates or repairs work as needed.",
+  "description": "A planning Epic for keeping an autonomous portfolio healthy over time. It wakes up on a schedule, checks objectives, audits all active Epics, performs housekeeping, and creates new Epics when coverage is missing.",
+  "category": "Planning",
+  "tags": ["planning", "inventory", "housekeeping", "objectives"],
+  "featured": true,
+  "source": {
+    "repo": "github.com/agentepics/epics",
+    "path": "autonomous-planning"
+  },
+  "version": "0.1.0",
+  "digest": "5f3b035e9418d919ab477e3d08665b6a5d117fa4",
+  "updatedAt": "2026-03-08",
+  "validationStatus": "reviewed",
+  "maintainers": [
+    {
+      "name": "agentepics",
+      "url": "https://github.com/agentepics"
+    }
+  ],
+  "skillMd": "# SKILL.md\n\n## Purpose\n\nRun a daily planning loop that keeps objectives, active Epics, and portfolio hygiene aligned.\n\n## Operating loop\n\n1. Read `state.json` for the current objective inventory and last review date.\n2. Review current objectives against `ROADMAP.md`.\n3. Inventory all active Epics and their `state.json` status fields.\n4. Repair stale, blocked, or misaligned Epics.\n5. Create new Epics where objectives lack coverage.\n6. Write a log entry to `log/` and update `state.json` with portfolio changes.\n\n## Rules\n\n- Planning must start from current objectives, not assumptions.\n- Every active Epic must have a reason to exist tied to an objective.\n- Record the objective gap when creating a new Epic or deciding not to.",
+  "epicMd": "# EPIC.md\n\n## Objective\n\nKeep the Epic portfolio aligned with objectives through recurring autonomous planning and housekeeping.\n\n## Phases\n\n1. **Review** — read current objectives and compare to the active portfolio.\n2. **Audit** — inventory all active Epics, flag stale or blocked ones.\n3. **Repair** — fix misaligned Epics or mark them for removal.\n4. **Expand** — create new Epics where objectives lack coverage.\n5. **Record** — log decisions and update state.\n\n## Success criteria\n\n- Every planning cycle reviews all objectives and all active Epics.\n- No stale Epic survives a cycle without justification.\n- New Epics are traceable to a specific objective gap.\n\n## State to preserve\n\n- `state.json` — objective inventory, Epic portfolio snapshot, last review timestamp\n- `plans/` — current planning actions and follow-ups\n- `log/` — one entry per planning cycle with decisions made\n\n## Guardrails\n\n- Do not keep stale Epics alive without explicit justification.\n- Do not create new Epics without recording the objective gap they cover.\n\n## Resume\n\nRead `state.json` for the objective inventory and last review date. Check `plans/` for pending planning actions. Read the last 3–5 `log/` entries to see recent portfolio decisions. Run the next planning cycle from the Review phase.",
+  "features": [
+    "Daily objective review and Epic inventory",
+    "Housekeeping for stale, blocked, or misaligned Epics",
+    "Creation prompts for new Epics when objectives lack coverage"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "slug": "autonomous-coding",
+  "title": "Autonomous Coding",
+  "summary": "Run a robust coding loop: update roadmap and plan, validate against the codebase, implement, validate the implementation, and run verification.",
+  "description": "A default execution Epic for autonomous software work. It starts by updating the roadmap and current plan, validates that plan against the existing codebase, implements the plan, validates the implementation back against the plan, runs lint, typecheck, and build checks, then updates and runs tests before the loop continues.",
+  "category": "Execution",
+  "tags": ["coding", "roadmap", "plan", "validation"],
+  "featured": true,
+  "source": {
+    "repo": "github.com/agentepics/epics",
+    "path": "autonomous-coding"
+  },
+  "version": "0.1.0",
+  "digest": "ef910e530f8edcbe2b6a7051803d78b1bf087ad7",
+  "updatedAt": "2026-03-08",
+  "validationStatus": "reviewed",
+  "maintainers": [
+    {
+      "name": "agentepics",
+      "url": "https://github.com/agentepics"
+    }
+  ],
+  "skillMd": "# SKILL.md\n\n## Purpose\n\nRun an autonomous coding loop that keeps roadmap, plan, implementation, validation, and tests aligned.\n\n## Operating loop\n\n1. Read `state.json` and the current plan from `plans/` to orient.\n2. Update `ROADMAP.md` and the current plan if they have drifted.\n3. Validate the current plan against the existing codebase.\n4. Implement the plan.\n5. Validate the implementation against the plan.\n6. Run lint, typecheck, and build.\n7. Update tests and run them.\n8. Write a log entry to `log/`, update `state.json`, and continue.\n\n## Rules\n\n- Do not start implementation before the plan matches the current codebase.\n- Do not call work complete until validation and tests pass.\n- Update the current plan in `plans/` after every meaningful change.\n- Write a `log/` entry for each completed loop iteration.",
+  "epicMd": "# EPIC.md\n\n## Objective\n\nMaintain a robust autonomous coding loop that executes useful software work without losing alignment between intent, code, validation, and tests.\n\n## Phases\n\n1. **Plan** — update roadmap and current plan so intent is explicit.\n2. **Validate plan** — confirm the plan is consistent with the codebase.\n3. **Implement** — make the code changes described in the plan.\n4. **Validate implementation** — review changes against the plan.\n5. **Verify** — run lint, typecheck, build, and tests.\n6. **Record** — log outcomes, update state, advance the plan.\n\n## Success criteria\n\n- Every loop iteration ends with passing verification.\n- The current plan in `plans/` always reflects the true next actions.\n- `ROADMAP.md` milestones advance as work completes.\n\n## State to preserve\n\n- `state.json` — current plan reference, milestone, progress, blocked flag\n- `plans/` — current and past tactical plans\n- `ROADMAP.md` — milestones and long-term goals\n- `log/` — one entry per completed loop iteration\n\n## Guardrails\n\n- Do not leave `state.json` or the current plan stale after implementation.\n- Do not skip verification steps when lint, typecheck, build, or tests are available.\n\n## Resume\n\nRead `state.json` for the current plan reference and progress. Open the referenced plan from `plans/` and check `## Now` for the next action. Read the last 3–5 `log/` entries for recent context. Continue the loop from the current phase.",
+  "features": [
+    "Update roadmap and current plan before starting work",
+    "Validate the plan against the existing codebase before implementation",
+    "Implement the approved current plan",
+    "Validate the implementation against the plan after coding",
+    "Run lint, typecheck, and build validation as part of the loop",
+    "Update tests and run them before considering the work complete"
+  ]
+}

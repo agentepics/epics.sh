@@ -1,0 +1,30 @@
+{
+  "slug": "telegram-integration",
+  "title": "Telegram Integration",
+  "summary": "Connect the coding agent to Telegram so it can reach the user with questions, updates, and status reports.",
+  "description": "A communications Epic for making autonomous work reachable. It sets up Telegram connectivity, keeps delivery settings and chat targets durable, and gives the agent a reliable path to ask questions or send reports back to the user.",
+  "category": "Communication",
+  "tags": ["telegram", "messaging", "questions", "reports"],
+  "featured": false,
+  "source": {
+    "repo": "github.com/agentepics/epics",
+    "path": "telegram-integration"
+  },
+  "version": "0.1.0",
+  "digest": "3670c76f0366c5848abbd3b083d4deb7673f60d5",
+  "updatedAt": "2026-03-08",
+  "validationStatus": "reviewed",
+  "maintainers": [
+    {
+      "name": "agentepics",
+      "url": "https://github.com/agentepics"
+    }
+  ],
+  "skillMd": "# SKILL.md\n\n## Purpose\n\nGive the agent a durable Telegram channel for asking questions and sending reports. This is a capability Epic — once installed, the agent has Telegram the way it has bash.\n\n## Operating loop\n\n1. Check `state.json` for bot connection status and active chat targets.\n2. If not configured, set up Telegram bot connectivity and record targets.\n3. When another Epic or the agent needs to communicate, decide: question or report.\n4. Send the message and record the outcome in `log/`.\n5. On failure, log the failure and escalate per `policy.yml`.\n\n## Rules\n\n- Only ask questions when they materially block progress.\n- Follow the user's reporting preferences stored in `state.json`.\n- Log every delivery failure — never silently drop a message.",
+  "epicMd": "# EPIC.md\n\n## Objective\n\nMake autonomous work reachable by giving the agent a reliable Telegram path for questions, reports, and status updates.\n\n## Phases\n\n1. **Setup** — configure bot token, verify connectivity, record chat targets.\n2. **Active** — route messages based on context: questions when blocked, reports on schedule.\n3. **Maintenance** — update targets and preferences as the user directs.\n\n## Success criteria\n\n- Bot connection is verified and recorded in `state.json`.\n- Messages reach the correct chat target without silent failures.\n- Delivery failures are logged and escalated.\n\n## State to preserve\n\n- `state.json` — bot status, active chat targets, delivery preferences, question-vs-report policy\n- `log/` — message delivery outcomes and failures\n\n## Guardrails\n\n- Do not send messages to the wrong chat target.\n- Do not silently drop delivery failures.\n\n## Resume\n\nRead `state.json` for bot connection status and chat targets. If the bot is configured, the capability is ready — no further setup needed. Check `log/` for recent delivery failures that may need retry.",
+  "features": [
+    "Telegram bot and chat routing setup",
+    "Durable rules for when to ask questions versus report status",
+    "Persistent delivery targets and communication preferences"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "slug": "agent-heartbeat",
+  "title": "Agent Heartbeat",
+  "summary": "Wake an agent on a regular interval. What happens each heartbeat is up to the agent's other active Epics.",
+  "description": "A scheduler-oriented Epic that owns the wake-up cadence and nothing else. It does not prescribe what work the agent performs — other active Epics and standing instructions determine that. This Epic ensures the agent wakes on time and logs that it did.",
+  "category": "Automation",
+  "tags": ["scheduler", "heartbeat", "autonomy", "roadmap"],
+  "featured": true,
+  "source": {
+    "repo": "github.com/agentepics/epics",
+    "path": "agent-heartbeat"
+  },
+  "version": "0.1.0",
+  "digest": "2e9e4a1e70ecc856aa4a1ce15e4bf573e49f9616",
+  "updatedAt": "2026-03-08",
+  "validationStatus": "reviewed",
+  "maintainers": [
+    {
+      "name": "agentepics",
+      "url": "https://github.com/agentepics"
+    }
+  ],
+  "skillMd": "# SKILL.md\n\n## Purpose\n\nWake the agent on a regular interval. What happens each heartbeat is determined by the agent's other active Epics and standing instructions — this Epic only owns the cadence.\n\n## Operating loop\n\n1. Wake on schedule. Read `state.json` for cadence and last run time.\n2. Hand control to the agent to act on whatever is current.\n3. When the agent finishes its work, write a log entry to `log/`.\n4. Update `state.json` with the completed run time and next scheduled wake.\n\n## Rules\n\n- This Epic manages the clock, not the work.\n- Every wake must update `state.json` so the next interval is known.\n- If the agent has nothing to do, log that and schedule the next wake anyway.",
+  "epicMd": "# EPIC.md\n\n## Objective\n\nProvide a durable wake-up cadence so the agent can act on its own schedule without manual prompting. This Epic does not prescribe what the agent does — only that it wakes up.\n\n## Phases\n\n1. **Configure** — set the cadence and record it in `state.json`.\n2. **Run** — wake on schedule, hand control to the agent, record that a heartbeat occurred.\n\n## Success criteria\n\n- Heartbeats fire at the configured cadence.\n- Every heartbeat is logged regardless of whether the agent had work to do.\n- `state.json` always reflects the last and next scheduled wake.\n\n## State to preserve\n\n- `state.json` — cadence, last run time, next run time\n- `log/` — one entry per heartbeat\n\n## Guardrails\n\n- Do not decide what work to do — that belongs to other Epics.\n- Do not skip a scheduled wake without logging why.\n\n## Resume\n\nRead `state.json` for the cadence and last run time. Compute whether a heartbeat is overdue. Read the last 3–5 `log/` entries to confirm recent wake history. Resume the cadence from the current interval.",
+  "features": [
+    "Configurable wake-up cadence independent of what work gets done",
+    "Logs every heartbeat whether or not the agent had work to do",
+    "Persistent state tracking last run, next run, and cadence"
+  ]
+}

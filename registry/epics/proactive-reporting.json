@@ -1,0 +1,30 @@
+{
+  "slug": "proactive-reporting",
+  "title": "Proactive Reporting",
+  "summary": "Track what the user wants reported, how often, and keep active Epics aligned with those reporting duties.",
+  "description": "A reporting Epic for autonomous systems that need disciplined communication. It records reporting expectations, checks all active Epics for reporting obligations, and maintains the routines needed to deliver useful updates without being asked each time.",
+  "category": "Communication",
+  "tags": ["reporting", "status", "frequency", "housekeeping"],
+  "featured": false,
+  "source": {
+    "repo": "github.com/agentepics/epics",
+    "path": "proactive-reporting"
+  },
+  "version": "0.1.0",
+  "digest": "4e6ab8daa03be0e0388c5c5e04f6961f0e5e96f1",
+  "updatedAt": "2026-03-08",
+  "validationStatus": "reviewed",
+  "maintainers": [
+    {
+      "name": "agentepics",
+      "url": "https://github.com/agentepics"
+    }
+  ],
+  "skillMd": "# SKILL.md\n\n## Purpose\n\nTrack what the user wants reported, how often, and keep active Epics aligned with those reporting duties.\n\n## Operating loop\n\n1. Read `state.json` for reporting cadence, scope, and per-Epic duties.\n2. Review active Epics for reporting obligations.\n3. Collect status signals: progress, blockers, and pending decisions.\n4. Produce and send reports on schedule.\n5. Write a log entry to `log/` and update `state.json` with delivery status.\n\n## Rules\n\n- Reporting frequency must follow the user's preference in `state.json`.\n- Every report must separate progress, blockers, and asks.\n- Log overdue or failed reports — never silently skip a cycle.",
+  "epicMd": "# EPIC.md\n\n## Objective\n\nMake reporting a maintained operating function by keeping user expectations, cadence, and Epic-level duties aligned.\n\n## Phases\n\n1. **Configure** — record reporting expectations, cadence, and destinations.\n2. **Audit** — review active Epics and map each to its reporting duty.\n3. **Deliver** — produce and send reports on schedule.\n4. **Maintain** — update duties as Epics are created, completed, or changed.\n\n## Success criteria\n\n- Reports are delivered at the user's requested frequency.\n- Every active Epic with a reporting duty is covered.\n- Overdue reports are flagged in `state.json` and logged.\n\n## State to preserve\n\n- `state.json` — reporting cadence, scope, destinations, per-Epic duties, overdue items\n- `plans/` — upcoming reporting actions and follow-ups\n- `log/` — one entry per delivered or missed report\n\n## Guardrails\n\n- Do not omit blockers or decisions that need user visibility.\n- Do not let active Epics drift away from their reporting duties.\n\n## Resume\n\nRead `state.json` for cadence, scope, and per-Epic reporting duties. Check whether any reports are overdue. Read the last 3–5 `log/` entries for recent delivery outcomes. Resume from the Audit or Deliver phase depending on what is due.",
+  "features": [
+    "Durable reporting preferences and cadence tracking",
+    "Cross-Epic housekeeping so reporting expectations are actually fulfilled",
+    "Separation between operational progress, blockers, and decision requests"
+  ]
+}
