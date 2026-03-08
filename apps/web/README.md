@@ -19,6 +19,16 @@ Planned stack:
 - Astro
 - TypeScript
 - MDX
+- static generation from `registry/`
+
+Current first-version surface:
+
+- landing page
+- directory index with basic filters
+- Epic detail pages with top-of-page install commands
+- compatibility page
+- CLI install, downloads, releases, and changelog pages
+- docs overview and manual pages
 
 The website should render:
 

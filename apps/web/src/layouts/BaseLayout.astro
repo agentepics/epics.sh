@@ -1,0 +1,112 @@
+---
+import '../styles/global.css';
+import { navLinks, siteDescription, siteTitle } from '../lib/site';
+
+const {
+	title = siteTitle,
+	description = siteDescription,
+} = Astro.props as {
+	title?: string;
+	description?: string;
+};
+
+const pageTitle = title === siteTitle ? title : `${title} • ${siteTitle}`;
+const pathname = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{pageTitle}</title>
+		<meta name="description" content={description} />
+		<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+		<link
+			href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-sans/index.css"
+			rel="stylesheet"
+		/>
+		<link
+			href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono/index.css"
+			rel="stylesheet"
+		/>
+	</head>
+	<body>
+		<header class="site-header">
+			<div class="brand-lockup">
+				<a href="/" class="brand-mark">epics.sh</a>
+				<p>Durable workflows making any coding agent autonomous</p>
+			</div>
+			<nav class="site-nav" aria-label="Primary">
+				<a class={pathname === '/' ? 'active' : ''} href="/">Home</a>
+				{navLinks.map((link) => {
+					const active =
+						link.href === '/'
+							? pathname === '/'
+							: pathname === link.href || pathname.startsWith(`${link.href}/`);
+					return (
+						<a class={active ? 'active' : ''} href={link.href}>
+							{link.label}
+						</a>
+					);
+				})}
+			</nav>
+		</header>
+		<main class="page-shell">
+			<slot />
+		</main>
+		<footer class="site-footer">
+			<div class="footer-panel footer-minimal">
+				<span class="footer-copy">epics.sh</span>
+				<a class="footer-link" href="https://github.com/agentepics">GitHub</a>
+			</div>
+		</footer>
+		<script is:inline>
+			document.addEventListener('click', async (event) => {
+				const target = event.target instanceof Element ? event.target.closest('[data-copy]') : null;
+				if (!(target instanceof HTMLButtonElement)) return;
+				const value = target.dataset.copy;
+				if (!value) return;
+				try {
+					await navigator.clipboard.writeText(value);
+					const label = target.querySelector('span');
+					if (!label) return;
+					const previous = label.textContent;
+					label.textContent = 'Copied';
+					window.setTimeout(() => {
+						label.textContent = previous;
+					}, 1600);
+				} catch (error) {
+					console.error(error);
+				}
+			});
+
+			document.addEventListener('click', (event) => {
+				const target = event.target instanceof Element ? event.target.closest('[data-switcher-tab]') : null;
+				if (!(target instanceof HTMLButtonElement)) return;
+				const switcherId = target.dataset.switcherTab;
+				if (!switcherId) return;
+				const buttons = document.querySelectorAll(`[data-switcher-tab="${switcherId}"]`);
+				buttons.forEach((button) => {
+					if (button instanceof HTMLButtonElement) {
+						button.classList.remove('active');
+						button.setAttribute('aria-selected', 'false');
+					}
+				});
+				target.classList.add('active');
+				target.setAttribute('aria-selected', 'true');
+				const command = target.dataset.command ?? '';
+				const description = target.dataset.description ?? '';
+				const commandNode = document.querySelector(`[data-switcher-command="${switcherId}"]`);
+				if (commandNode) commandNode.textContent = command;
+				const descriptionNode = document.querySelector(`[data-switcher-description="${switcherId}"]`);
+				if (descriptionNode) descriptionNode.textContent = description;
+				const copyButton = document.querySelector(`[data-switcher-copy="${switcherId}"]`);
+				if (copyButton instanceof HTMLButtonElement) {
+					copyButton.dataset.copy = command;
+				}
+			});
+		</script>
+	</body>
+</html>

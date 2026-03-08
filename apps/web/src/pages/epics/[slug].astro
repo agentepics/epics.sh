@@ -1,0 +1,83 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CommandSwitcher from '../../components/CommandSwitcher.astro';
+import { buildInstallerCommand, getEpics } from '../../lib/registry';
+import { renderMarkdown } from '../../lib/markdown';
+import { formatDate } from '../../lib/site';
+import type { EpicRecord, Maintainer } from '../../lib/types';
+
+export async function getStaticPaths() {
+	const epics = await getEpics();
+	return epics.map((epic: EpicRecord) => ({
+		params: { slug: epic.slug },
+		props: { epic },
+	}));
+}
+
+const { epic } = Astro.props as { epic: EpicRecord };
+const guidedInstallCommands = [
+	{
+		label: 'macOS/Linux',
+		command: buildInstallerCommand(epic, 'unix'),
+	},
+	{
+		label: 'Windows',
+		command: buildInstallerCommand(epic, 'windows'),
+	},
+];
+---
+
+<BaseLayout title={epic.title} description={epic.summary}>
+	<section class="detail-layout">
+		<div>
+			<h1 class="detail-title">{epic.title}</h1>
+			<p class="hero-copy">{epic.summary}</p>
+			<div class="detail-meta">
+				<span class="mini-pill">Version {epic.version}</span>
+				<span class="mini-pill">Updated {formatDate(epic.updatedAt)}</span>
+				<span class="mini-pill">{epic.validationStatus === 'reviewed' ? 'Reviewed listing' : 'Draft listing'}</span>
+			</div>
+			<div class="summary-blockquote">
+				<p class="lede">{epic.description}</p>
+			</div>
+			<div class="tag-row">
+				{epic.tags.map((tag: string) => <span class="tag">{tag}</span>)}
+			</div>
+		</div>
+
+		<aside class="detail-sidebar">
+			<CommandSwitcher id={`install-${epic.slug}`} label="Install this Epic" items={guidedInstallCommands} />
+			<div>
+				<p class="support-note">Digest</p>
+				<code>{epic.digest}</code>
+			</div>
+		</aside>
+	</section>
+
+	<section>
+		<h2>What this Epic does</h2>
+		<ul>
+			{epic.features.map((feature: string) => <li>{feature}</li>)}
+		</ul>
+		<p class="support-note">Maintainers</p>
+		<ul>
+			{epic.maintainers.map((maintainer: Maintainer) => (
+				<li>
+					{maintainer.url ? <a class="source-link" href={maintainer.url}>{maintainer.name}</a> : maintainer.name}
+				</li>
+			))}
+		</ul>
+		<p class="support-note">Source</p>
+		<a class="source-link" href={`https://${epic.source.repo}${epic.source.path ? `/${epic.source.path}` : ''}`}>
+			{epic.source.repo}{epic.source.path ? `/${epic.source.path}` : ''}
+		</a>
+	</section>
+
+	<section class="docs-article">
+		<div set:html={renderMarkdown(epic.skillMd)} />
+	</section>
+
+	<section class="docs-article">
+		<div set:html={renderMarkdown(epic.epicMd)} />
+	</section>
+</BaseLayout>

@@ -1,0 +1,45 @@
+---
+interface Item {
+	label: string;
+	command: string;
+	description?: string;
+}
+
+const {
+	label,
+	items,
+	id,
+} = Astro.props as {
+	label: string;
+	items: Item[];
+	id: string;
+};
+
+const active = items[0];
+---
+
+<div class="command-switcher">
+	<p class="eyebrow">{label}</p>
+	<div class="switcher-tabs" role="tablist" aria-label={label}>
+		{items.map((item, index) => (
+			<button
+				class={`switcher-tab ${index === 0 ? 'active' : ''}`}
+				type="button"
+				role="tab"
+				aria-selected={index === 0 ? 'true' : 'false'}
+				data-switcher-tab={id}
+				data-command={item.command}
+				data-description={item.description ?? ''}
+			>
+				{item.label}
+			</button>
+		))}
+	</div>
+	<div class="command-row switcher-command">
+		<code data-switcher-command={id}>{active.command}</code>
+		<button class="copy-button" type="button" data-copy={active.command} data-switcher-copy={id}>
+			<span>Copy</span>
+		</button>
+	</div>
+	{active.description && <p class="meta-line" data-switcher-description={id}>{active.description}</p>}
+</div>

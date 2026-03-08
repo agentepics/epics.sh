@@ -1,0 +1,46 @@
+---
+import { getCollection } from 'astro:content';
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const docs = (await getCollection('docs')).sort((left, right) => left.data.order - right.data.order);
+const toDocPath = (id: string) => {
+	const withoutExtension = id.replace(/\.mdx?$/, '');
+	return withoutExtension.endsWith('/index')
+		? withoutExtension.slice(0, -'/index'.length)
+		: withoutExtension;
+};
+const grouped = docs.reduce<Record<string, typeof docs>>((accumulator, entry) => {
+	(accumulator[entry.data.section] ??= []).push(entry);
+	return accumulator;
+}, {});
+---
+
+<BaseLayout title="Docs" description="Docs, manual, and product guidance for Agent Epics and the epics CLI.">
+	<section>
+		<p class="eyebrow">Docs</p>
+		<h1 class="page-title">Manual, guides, and product framing.</h1>
+		<p class="lede">
+			The docs surface keeps product overview, getting started, and manual content in
+			one place. The website is the reading experience; the repo remains the source of
+			truth.
+		</p>
+	</section>
+
+	<section class="docs-grid">
+		{Object.entries(grouped).map(([section, entries]) => (
+			<article>
+				<p class="eyebrow">{section}</p>
+				<h2>{section}</h2>
+				<ul class="docs-link-list">
+					{entries.map((entry) => (
+						<li>
+							<a href={`/docs/${toDocPath(entry.id)}`}>{entry.data.navTitle ?? entry.data.title}</a>
+							<p class="meta-line">{entry.data.description}</p>
+						</li>
+					))}
+				</ul>
+			</article>
+		))}
+	</section>
+</BaseLayout>

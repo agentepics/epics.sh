@@ -55,16 +55,61 @@ The skill asks you to pick an archetype that shapes the generated package:
 
 ## Key concepts
 
+**Mutability tiers** — Not every file in an Epic has the same write rules. The
+spec defines three tiers:
+
+- **Working state** (agent-writable) — `state.json`, `log/`, plan progress.
+  The agent updates these freely during execution.
+- **Configuration** (human-only) — `policy.yml`, `cron.d/`, `hooks/`. Only a
+  human or the scaffolder should modify these.
+- **Immutable** (skill author) — `SKILL.md` and `EPIC.md` are set at publish
+  time. They define the contract and should not change at runtime.
+
 **Cron schedules** — Epics can declare recurring tasks in `cron.d/`. These let
 the agent perform periodic work like syncing state, running checks, or
-publishing reports without manual triggers.
+publishing reports without manual triggers. Each cron file uses a simple YAML
+schema:
 
-**Hooks** — Lifecycle hooks in `hooks/` fire at defined points (start, pause,
-resume, complete). They are useful for setup, teardown, and notifications.
+```yaml
+name: daily-sync
+schedule: "0 9 * * *"
+timezone: America/New_York
+enabled: true
+run: "epics resume --check-only"
+context: state.json
+output: log/cron/
+```
 
-**Policy constraints** — `policy.yml` sets guardrails for the agent: resource
-limits, allowed actions, review gates, and escalation rules. Policies keep
-autonomous work predictable without micromanagement.
+Fields: `name`, `schedule` (cron expression), `timezone`, `enabled`, `run`
+(shell command), `context` (file to pass), and `output` (log directory).
+
+**Hooks** — Lifecycle hooks in `hooks/` fire at defined trigger points. The
+canonical triggers are:
+
+- `install` — after the Epic is installed into a workspace
+- `uninstall` — before the Epic is removed
+- `status-changed` — when `state.json` status field changes
+- `milestone-complete` — when a plan milestone is marked done
+- `plan-empty` — when all plan items are complete
+- `became-blocked` — when the agent cannot proceed
+- `cron-fired` — after a cron schedule executes
+
+Hooks are shell scripts. They receive the trigger name and relevant context as
+arguments.
+
+**Policy constraints** — `policy.yml` sets guardrails for the agent. It has two
+main sections:
+
+- **`autonomy`** — spend limits, allowed tools, permitted network access, and
+  file-system boundaries.
+- **`escalation`** — rules for `on_error` (retry, pause, or notify) and
+  `on_ambiguity` (ask human, pick default, or skip).
+
+Policies keep autonomous work predictable without micromanagement.
+
+**Validation** — The skills repo includes `validate-epic.sh`, a script that
+checks package correctness: required files, schema compliance, hook
+permissions, and cron syntax. Run it before publishing to catch issues early.
 
 ## Next steps
 

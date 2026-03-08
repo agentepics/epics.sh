@@ -1,0 +1,53 @@
+---
+title: Codex CLI Integration (Research)
+description: Current research status on OpenAI Codex CLI as an Epic host adapter.
+section: Concepts
+order: 26
+navTitle: Codex (Research)
+---
+
+Codex CLI has a real integration surface for Epics, but it is currently
+**research-only** and not promoted as a supported host. This page summarises
+the findings and outlines the path to eventual support.
+
+## Current status
+
+Codex is not offered as a `--host` option in the `epics` CLI. The research
+shows a capable CLI with good automation primitives, but weaker lifecycle-hook
+support compared to Claude Code or Gemini CLI.
+
+## Strongest integration surfaces
+
+1. **`AGENTS.md`** — Codex's primary instruction surface. Natural place to
+   inject Epic workspace conventions, resume guidance, and operating rules.
+2. **`config.toml` and profiles** — Model selection, sandbox mode, approval
+   policy. Adapter can generate profile snippets rather than mutating global
+   config.
+3. **Non-interactive execution** — `codex exec`, `codex review`, and
+   `codex resume` support JSONL output and schema-constrained results. Strong
+   for CI pipelines and batch Epic validation.
+4. **MCP client and server** — Codex can consume Epic-aware MCP services and
+   expose itself via `codex mcp-server`. Cleanest path for structured
+   plan/state/log operations.
+5. **Sandbox and approval controls** — `--sandbox`, `--full-auto`, and
+   `--ask-for-approval` shape what unattended automation can do. These are
+   execution-policy constraints, not lifecycle hooks.
+
+## Main constraint
+
+Codex is weaker than Claude Code and Gemini CLI for direct hook-style lifecycle
+integration. This means `epics.sh` should avoid promising full runtime parity,
+automatic condition-triggered behaviour, or host-native cron orchestration
+without extra runtime help.
+
+## Path to promotion
+
+1. `AGENTS.md` guidance + documented install flow
+2. `epics` CLI as the operational surface
+3. `codex exec` workflows for validation and automation
+4. MCP-backed advanced integration
+5. Optional daemon bridge for runtime features beyond Codex's native lifecycle
+
+For the full research notes, see
+[`docs/adapters/CODEX_CLI.md`](https://github.com/agentepics/agentepics/blob/main/docs/adapters/CODEX_CLI.md)
+in the repo.

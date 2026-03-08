@@ -1,0 +1,22 @@
+---
+import { formatDate } from '../lib/site';
+import type { EpicRecord } from '../lib/types';
+
+const { epic } = Astro.props as { epic: EpicRecord };
+---
+
+<article class="epic-row">
+	<div class="epic-row-main">
+		<div class="epic-row-heading">
+			<h3><a href={`/epics/${epic.slug}`}>{epic.title}</a></h3>
+			<div class="tag-row epic-row-tags">
+				{epic.tags.map((tag) => <span class="tag">{tag}</span>)}
+			</div>
+		</div>
+		<p class="card-summary">{epic.summary}</p>
+		<div class="epic-row-meta">
+			<span>{epic.category}</span>
+			<span>Updated {formatDate(epic.updatedAt)}</span>
+		</div>
+	</div>
+</article>

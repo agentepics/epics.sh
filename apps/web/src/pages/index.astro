@@ -1,0 +1,57 @@
+---
+import CommandSwitcher from '../components/CommandSwitcher.astro';
+import EpicCard from '../components/EpicCard.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getEpics } from '../lib/registry';
+import { hostCatalog } from '../lib/site';
+import type { EpicRecord } from '../lib/types';
+
+const epics = await getEpics();
+
+const bootstrapCommands = [
+	{
+		label: 'macOS/Linux',
+		command: 'curl -fsSL https://epics.sh/install.sh | sh',
+	},
+	{
+		label: 'Windows',
+		command: 'iwr https://epics.sh/install.ps1 -useb | iex',
+	},
+];
+
+const hosts = Object.values(hostCatalog);
+---
+
+<BaseLayout
+	title="Durable workflows making any coding agent autonomous"
+	description="Epics give coding agents persistent memory. Install workflows that carry plans, decisions, and context across sessions."
+>
+	<section class="hero-banner compact-hero">
+		<div class="hero-intro">
+			<h1 class="hero-headline compact">The Agent Epics Registry</h1>
+			<p class="hero-copy">
+				Make any AI coding agent autonomous. Install durable, stateful workflows
+				that persist across sessions on any supported host.
+			</p>
+		</div>
+		<div class="hero-install-block">
+			<p class="eyebrow-label">Install the CLI</p>
+			<CommandSwitcher id="hero-install" label="" items={bootstrapCommands} />
+		</div>
+		<div class="hero-agents-block">
+			<p class="eyebrow-label">Available for these agents</p>
+			<div class="host-logo-grid">
+				{hosts.map((host) => (
+					<a class="host-logo-card" href="/compatibility">
+						<img class="host-logo-img" src={host.logo} alt={host.label} />
+						<span class="host-logo-label">{host.label}</span>
+					</a>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<section class="list-grid">
+		{epics.map((epic: EpicRecord) => <EpicCard epic={epic} />)}
+	</section>
+</BaseLayout>

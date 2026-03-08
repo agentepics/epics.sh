@@ -1,0 +1,30 @@
+---
+title: CLI Manual
+description: Manual landing page for the epics CLI.
+section: Manual
+order: 40
+navTitle: Manual
+---
+
+The `epics` CLI is the canonical implementation surface.
+
+Use the manual for:
+
+- installation
+- core commands
+- host setup concepts
+- validation and integrity workflows
+
+## Core commands
+
+```bash
+epics install <repo-path>
+epics install --host claude <repo-path>
+epics validate
+epics info
+epics resume
+epics doctor
+```
+
+Run the CLI from the project folder that should own the install. Host-specific
+packages are installed locally in that workspace, not globally.

@@ -1,0 +1,19 @@
+---
+title: Authoring Model
+description: How the package model stays portable while host adapters layer on top.
+section: Concepts
+order: 30
+navTitle: Authoring Model
+---
+
+An Epic package should stay portable first.
+
+That means the workflow definition should not assume one host owns the model.
+The package carries the durable workflow. The adapter layer should bring every
+supported host up to the same autonomy contract instead of exposing downgraded
+tiers.
+
+## Practical rule
+
+Keep the Epic model host-neutral, and keep `epics` as the canonical control
+surface.

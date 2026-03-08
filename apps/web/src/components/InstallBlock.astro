@@ -1,0 +1,26 @@
+---
+import CopyButton from './CopyButton.astro';
+
+const {
+	command,
+	label = 'Install',
+	description,
+	compact = false,
+} = Astro.props as {
+	command: string;
+	label?: string;
+	description?: string;
+	compact?: boolean;
+};
+---
+
+<div class={`install-block ${compact ? 'compact' : ''}`}>
+	<div class="install-meta">
+		<p class="eyebrow">{label}</p>
+		{description && <p class="install-description">{description}</p>}
+	</div>
+	<div class="command-row">
+		<code>{command}</code>
+		<CopyButton value={command} label="Copy" />
+	</div>
+</div>

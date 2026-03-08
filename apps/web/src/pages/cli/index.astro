@@ -1,0 +1,76 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import InstallBlock from '../../components/InstallBlock.astro';
+import { getReleaseIndex } from '../../lib/cli';
+import { formatDate } from '../../lib/site';
+
+const releases = await getReleaseIndex();
+const current = releases.releases[0];
+---
+
+<BaseLayout title="epics CLI" description="Install the epics CLI, download platform builds, and read the changelog.">
+	<section>
+		<h1 class="page-title">The canonical control surface for Epics.</h1>
+		<p class="lede">
+			The website reflects the real CLI, not a separate web-only workflow. Install
+			the binary, then use <code>epics install</code>, <code>validate</code>,
+			<code>resume</code>, and host setup commands from the same model the directory
+			renders.
+		</p>
+	</section>
+
+	<section id="install">
+		<h2>Install</h2>
+		<div class="cli-grid">
+			<InstallBlock command="curl -fsSL https://epics.sh/install.sh | sh" label="macOS/Linux" />
+			<InstallBlock
+				command="iwr https://epics.sh/install.ps1 -useb | iex"
+				label="Windows"
+			/>
+		</div>
+	</section>
+
+	<section id="downloads">
+		<h2>Downloads</h2>
+		<p class="lede">
+			Download metadata is generated from the same release source the site uses for
+			release notes and changelog entries. Checksums are shown inline so install and
+			review surfaces stay aligned.
+		</p>
+		<table class="download-table">
+			<thead>
+				<tr>
+					<th>Target</th>
+					<th>Artifact</th>
+					<th>Checksum</th>
+				</tr>
+			</thead>
+			<tbody>
+				{current.downloads.map((download) => (
+					<tr>
+						<td>{download.label}</td>
+						<td><a href={download.url}>{download.target}</a></td>
+						<td><code>{download.checksum}</code></td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</section>
+
+	<section id="changelog">
+		<h2>Changelog</h2>
+		<div class="list-grid">
+			{releases.releases.map((release) => (
+				<article class="epic-row">
+					<div class="epic-row-heading">
+						<h3>{release.version}</h3>
+						<span class="tag">{formatDate(release.publishedAt)}</span>
+					</div>
+					<ul>
+						{release.highlights.map((item) => <li>{item}</li>)}
+					</ul>
+				</article>
+			))}
+		</div>
+	</section>
+</BaseLayout>

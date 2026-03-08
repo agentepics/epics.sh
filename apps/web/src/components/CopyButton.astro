@@ -1,0 +1,7 @@
+---
+const { value, label = 'Copy' } = Astro.props;
+---
+
+<button class="copy-button" type="button" data-copy={value}>
+	<span>{label}</span>
+</button>

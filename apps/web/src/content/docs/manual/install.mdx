@@ -1,0 +1,30 @@
+---
+title: Install Manual
+description: Bootstrap the CLI and install an Epic through the guided installer.
+section: Manual
+order: 50
+navTitle: Install Manual
+---
+
+Use one installer command from an Epic page while you are in the project folder
+that should own the Epic install. The bootstrap flow should detect or install
+the CLI, then continue with the requested Epic.
+
+```bash
+curl -fsSL https://epics.sh/install.sh | sh -s -- github.com/agentepics/epics/autonomous-coding
+```
+
+## Advanced usage
+
+Automation and manual workflows can call `epics install` directly:
+
+```bash
+epics install --host claude <repo-path>
+```
+
+If `--host` is omitted in an interactive terminal, `epics install <repo-path>`
+prompts for the target host. In non-interactive environments it fails instead of
+guessing.
+
+For Claude, the installed Epic is copied into `.claude/skills/<slug>/` inside
+the current project. CLI-managed metadata stays in `.epics/`.

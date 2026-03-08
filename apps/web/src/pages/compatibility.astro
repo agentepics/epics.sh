@@ -1,0 +1,25 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { hostCatalog } from '../lib/site';
+---
+
+<BaseLayout title="Supported agents" description="Supported agents all satisfy the same autonomy contract.">
+	<section>
+		<h1 class="page-title">Supported agents</h1>
+		<p class="lede">
+			The <code>epics</code> CLI should bring supported coding agents to the same
+			level of autonomy. If a host cannot fulfill that contract, it should not be
+			offered here.
+		</p>
+	</section>
+
+	<section class="host-grid">
+		{Object.values(hostCatalog).map((host) => (
+			<div>
+				<p class="eyebrow">{host.headline}</p>
+				<h2>{host.label}</h2>
+				<p class="lede">{host.posture}</p>
+			</div>
+		))}
+	</section>
+</BaseLayout>
