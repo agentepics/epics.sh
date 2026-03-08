@@ -3,11 +3,12 @@ package install
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/agentepics/epics.sh/internal/epic"
+	"github.com/agentepics/epics.sh/internal/fsutil"
+	"github.com/agentepics/epics.sh/internal/testutil"
 )
 
 func TestParseGitHubSource(t *testing.T) {
@@ -39,7 +40,7 @@ func TestParseGitHubSource(t *testing.T) {
 }
 
 func TestRunInstallHooksExecutesShellHook(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	src := filepath.Join(root, "examples", "fixtures", "install-hook-epic")
 	dest := filepath.Join(t.TempDir(), "install-hook-epic")
 
@@ -117,7 +118,7 @@ func TestRunInstallHooksRejectsUnsupportedHTTPHook(t *testing.T) {
 }
 
 func TestRunInstallHooksRejectsEmptyPromptHook(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	src := filepath.Join(root, "examples", "fixtures", "invalid-prompt-install-hook-epic")
 	dest := filepath.Join(t.TempDir(), "invalid-prompt-install-hook-epic")
 
@@ -143,7 +144,7 @@ func TestRunInstallHooksRejectsEmptyPromptHook(t *testing.T) {
 }
 
 func TestInstallRollsBackOnHookFailure(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	src := filepath.Join(root, "examples", "fixtures", "failing-install-hook-epic")
 	cwd := t.TempDir()
 	dest := filepath.Join(cwd, ".claude", "skills", "failing-install-hook-epic")
@@ -187,11 +188,4 @@ func TestInstallRollsBackOnHookFailure(t *testing.T) {
 	}
 }
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("could not resolve caller")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-}
+func copyDir(src, dest string) error { return fsutil.CopyDir(src, dest) }

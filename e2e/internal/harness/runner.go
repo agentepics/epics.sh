@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/agentepics/epics.sh/internal/fsutil"
 )
 
 type Runner struct {
@@ -755,17 +757,6 @@ func collectImageProfiles(scenarios []Scenario) []string {
 	return profiles
 }
 
-func missingEnvVars(keys []string) []string {
-	var missing []string
-	for _, key := range keys {
-		if _, ok := os.LookupEnv(key); !ok {
-			missing = append(missing, key)
-		}
-	}
-	sort.Strings(missing)
-	return missing
-}
-
 func mustCombinedOutput(name string, args ...string) []byte {
 	output, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
@@ -934,37 +925,9 @@ func copyPath(src, dest string) error {
 		return err
 	}
 	if info.IsDir() {
-		return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			rel, err := filepath.Rel(src, path)
-			if err != nil {
-				return err
-			}
-			target := filepath.Join(dest, rel)
-			if d.IsDir() {
-				return os.MkdirAll(target, 0o755)
-			}
-			entryInfo, err := d.Info()
-			if err != nil {
-				return err
-			}
-			return copyFile(path, target, entryInfo.Mode())
-		})
+		return fsutil.CopyDir(src, dest)
 	}
-	return copyFile(src, dest, info.Mode())
-}
-
-func copyFile(src, dest string, mode fs.FileMode) error {
-	raw, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(dest, raw, mode.Perm())
+	return fsutil.CopyFile(src, dest, info.Mode())
 }
 
 func sanitizeName(value string) string {

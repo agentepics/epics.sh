@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/agentepics/epics.sh/internal/epic"
+	"github.com/agentepics/epics.sh/internal/fsutil"
 	"github.com/agentepics/epics.sh/internal/workspace"
 )
 
@@ -146,11 +146,7 @@ func Install(cwd, input, host string, installDir func(slug string) string) (Inst
 	defer os.RemoveAll(stagingDir)
 
 	switch source.Kind {
-	case "local":
-		if err := copyPackageSurface(source.Root, stagingDir); err != nil {
-			return InstallResult{}, err
-		}
-	case "remote":
+	case "local", "remote":
 		if err := copyPackageSurface(source.Root, stagingDir); err != nil {
 			return InstallResult{}, err
 		}
@@ -328,53 +324,18 @@ func copyPackageSurface(srcRoot, destRoot string) error {
 
 		destPath := filepath.Join(destRoot, name)
 		if info.IsDir() {
-			if err := copyDir(srcPath, destPath); err != nil {
+			if err := fsutil.CopyDir(srcPath, destPath); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if err := copyFile(srcPath, destPath, info.Mode()); err != nil {
+		if err := fsutil.CopyFile(srcPath, destPath, info.Mode()); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func copyDir(src, dest string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		return copyFile(path, target, info.Mode())
-	})
-}
-
-func copyFile(src, dest string, mode fs.FileMode) error {
-	raw, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(dest, raw, mode.Perm())
 }
 
 func findUpward(start, relative string) (string, error) {

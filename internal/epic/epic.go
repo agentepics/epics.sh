@@ -452,7 +452,7 @@ func parseFrontmatter(content string) map[string]string {
 		}
 		values[strings.TrimSpace(strings.ToLower(key))] = strings.Trim(strings.TrimSpace(value), `"'`)
 	}
-	return nil
+	return values
 }
 
 func sanitizeSlug(value string) string {

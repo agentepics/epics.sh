@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/agentepics/epics.sh/internal/fsutil"
+	"github.com/agentepics/epics.sh/internal/testutil"
 )
 
 func TestInitCreatesPackage(t *testing.T) {
@@ -25,7 +27,7 @@ func TestInitCreatesPackage(t *testing.T) {
 }
 
 func TestValidateFixture(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	valid := filepath.Join(root, "examples", "fixtures", "valid-epic")
 	invalid := filepath.Join(root, "examples", "fixtures", "invalid-missing-epic")
 
@@ -45,7 +47,7 @@ func TestValidateFixture(t *testing.T) {
 }
 
 func TestInstallLocalFixtureAndInfo(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	workdir := t.TempDir()
 	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
 
@@ -81,7 +83,7 @@ func TestInstallLocalFixtureAndInfo(t *testing.T) {
 }
 
 func TestInstallRegistryEntry(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	workdir := t.TempDir()
 
 	if err := copyDir(filepath.Join(root, "registry"), filepath.Join(workdir, "registry")); err != nil {
@@ -117,7 +119,7 @@ func TestInstallRegistryEntry(t *testing.T) {
 }
 
 func TestInstallPromptsForHostWhenInteractive(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	workdir := t.TempDir()
 	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
 
@@ -138,7 +140,7 @@ func TestInstallPromptsForHostWhenInteractive(t *testing.T) {
 }
 
 func TestInstallRequiresHostWhenNonInteractive(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	workdir := t.TempDir()
 	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
 
@@ -156,7 +158,7 @@ func TestInstallRequiresHostWhenNonInteractive(t *testing.T) {
 }
 
 func TestResumeUsesStateAndPlan(t *testing.T) {
-	root := repoRoot(t)
+	root := testutil.RepoRoot(t)
 	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
 
 	var stdout bytes.Buffer
@@ -189,6 +191,21 @@ func TestDoctorJSON(t *testing.T) {
 	}
 }
 
+func TestInfoRejectsExtraArgs(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"info", "one", "two"}); code == 0 {
+		t.Fatal("expected info with extra args to fail")
+	}
+	if !strings.Contains(stderr.String(), "expected at most one argument") {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
+
 func TestHostSetupClaudeIsAdditive(t *testing.T) {
 	dir := t.TempDir()
 	existing := filepath.Join(dir, "CLAUDE.md")
@@ -215,32 +232,6 @@ func TestHostSetupClaudeIsAdditive(t *testing.T) {
 	}
 }
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("could not resolve caller")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-}
-
 func copyDir(src, dest string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, raw, info.Mode())
-	})
+	return fsutil.CopyDir(src, dest)
 }

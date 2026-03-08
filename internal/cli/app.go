@@ -174,9 +174,9 @@ func (a App) runInstall(flags globalFlags, args []string) int {
 
 	if flags.JSON {
 		return a.emitJSON(map[string]any{
-			"install":   result,
-			"host":      host,
-			"hostSetup": hostSetup,
+			"install":    result,
+			"host":       host,
+			"host_setup": hostSetup,
 		})
 	}
 
@@ -189,7 +189,11 @@ func (a App) runInstall(flags globalFlags, args []string) int {
 }
 
 func (a App) runValidate(flags globalFlags, args []string) int {
-	target, err := a.resolvePackageTarget(singleOptionalArg(args))
+	arg, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	target, err := a.resolvePackageTarget(arg)
 	if err != nil {
 		return a.fail(flags, err)
 	}
@@ -227,7 +231,11 @@ func (a App) runValidate(flags globalFlags, args []string) int {
 }
 
 func (a App) runInfo(flags globalFlags, args []string) int {
-	target, record, err := a.resolvePackageReference(singleOptionalArg(args))
+	arg, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	target, record, err := a.resolvePackageReference(arg)
 	if err != nil {
 		return a.fail(flags, err)
 	}
@@ -271,7 +279,11 @@ func (a App) runInfo(flags globalFlags, args []string) int {
 }
 
 func (a App) runResume(flags globalFlags, args []string) int {
-	target, _, err := a.resolvePackageReference(singleOptionalArg(args))
+	arg, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	target, _, err := a.resolvePackageReference(arg)
 	if err != nil {
 		return a.fail(flags, err)
 	}
@@ -459,11 +471,14 @@ func parseInstallArgs(args []string) (installArgs, error) {
 	return result, nil
 }
 
-func singleOptionalArg(args []string) string {
-	if len(args) == 0 {
-		return ""
+func requireAtMostOneArg(args []string) (string, error) {
+	if len(args) > 1 {
+		return "", errors.New("expected at most one argument")
 	}
-	return args[0]
+	if len(args) == 0 {
+		return "", nil
+	}
+	return args[0], nil
 }
 
 func exists(path string) bool {
@@ -530,7 +545,11 @@ func (a App) selectHost() (string, error) {
 }
 
 func (a App) printHostSetupResult(host string, result hostapi.Result) {
-	a.print(fmt.Sprintf("%s workspace setup complete.", strings.Title(host)))
+	label := host
+	if len(label) > 0 {
+		label = strings.ToUpper(label[:1]) + label[1:]
+	}
+	a.print(fmt.Sprintf("%s workspace setup complete.", label))
 	if len(result.Created) > 0 {
 		sort.Strings(result.Created)
 		a.print("Created:")

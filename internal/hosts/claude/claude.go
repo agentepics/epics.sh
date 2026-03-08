@@ -58,6 +58,7 @@ func writeIfMissingOrSame(path, content string) (bool, error) {
 		if strings.TrimSpace(string(raw)) == strings.TrimSpace(content) {
 			return false, nil
 		}
+		// Additive-only: never overwrite existing host files with different content.
 		return false, nil
 	}
 
