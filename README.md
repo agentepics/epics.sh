@@ -6,7 +6,7 @@
 - the `epics` Go CLI
 
 The goal is to make Agent Epics easy to publish, discover, install, and run
-across AI coding agent CLIs such as Claude Code, Codex, Gemini CLI, and
+across supported AI coding agent CLIs such as Claude Code, Gemini CLI, and
 OpenCode.
 
 ## Scope
@@ -44,6 +44,7 @@ CLI, and local development fixtures.
 ├── internal/                 # shared Go packages
 ├── registry/
 │   ├── epics/                # registry metadata and listing entries
+│   ├── cli/                  # CLI release/download metadata
 │   └── schemas/              # metadata and manifest schemas
 ├── examples/                 # local examples, fixtures, and smoke-test inputs
 └── docs/
@@ -70,18 +71,17 @@ Important explicit objective:
 
 ## Host Strategy
 
-Initial target posture:
+Supported hosts must all satisfy the same autonomy contract through the
+`epics` CLI. If a host cannot uphold that contract, it should not be offered as
+an `epics.sh` host.
+
+Current supported hosts:
 
 | Host | Current stance |
 |---|---|
-| Claude Code | strongest first integration target |
-| Gemini CLI | strong second integration target |
-| OpenCode | dedicated adapter target |
-| Codex CLI | partial lifecycle support, strong CLI/MCP target |
-| Generic shell-driven agents | baseline support |
-
-The key rule is to use a capability model, not assume every host supports the
-same runtime semantics.
+| Claude Code | supported |
+| Gemini CLI | supported |
+| OpenCode | supported |
 
 ## Current Status
 
@@ -91,13 +91,14 @@ Implemented so far:
 
 - repo scaffold
 - monorepo directory structure
+- first static Astro website version under `apps/web`
+- seed registry metadata for Epic listings and CLI releases
 - planning docs
 - daemon/runtime design notes
 - adapter research docs
 
 Not implemented yet:
 
-- working website
 - working `epics` CLI beyond a stub
 - registry schemas
 - host adapter code
@@ -132,7 +133,7 @@ Expected next implementation tracks:
 ## Non-goals for V1
 
 - redefining the Epic standard
-- pretending all host CLIs have feature parity
+- offering hosts that cannot fulfill the autonomy contract
 - building a full autonomous runtime before the registry and installer are real
 - splitting website and CLI into separate repos before ownership and release
   cadence justify it

@@ -19,3 +19,5 @@ out/
 .idea/
 .vscode/
 
+# E2E harness
+.e2e-artifacts/
