@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -191,6 +192,60 @@ func TestDoctorJSON(t *testing.T) {
 	}
 }
 
+func TestDoctorInstalledEpicDistinguishesAuthoredFromInstalled(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	workdir := t.TempDir()
+	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(workdir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"install", "--host", "claude", fixture}); code != 0 {
+		t.Fatalf("install failed: code=%d stderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"doctor"}); code != 0 {
+		t.Fatalf("doctor failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "OK: authored-package - no authored Epic package in the current directory; workspace tracks 1 installed Epic(s)") {
+		t.Fatalf("unexpected doctor output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "OK: installed-epics - workspace metadata tracks 1 installed Epic(s): resume-epic@claude") {
+		t.Fatalf("unexpected doctor output: %s", stdout.String())
+	}
+}
+
+func TestDoctorWarnsWhenLocalSourceIsMissing(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	workdir := t.TempDir()
+	fixtureSource := filepath.Join(workdir, "fixtures", "resume-epic")
+	if err := copyDir(filepath.Join(root, "examples", "fixtures", "resume-epic"), fixtureSource); err != nil {
+		t.Fatalf("copy fixture: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(workdir, strings.NewReader(""), &stdout, &stderr)
+	if code := app.Run([]string{"install", "--host", "claude", "./fixtures/resume-epic"}); code != 0 {
+		t.Fatalf("install failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if err := os.RemoveAll(filepath.Join(workdir, "fixtures")); err != nil {
+		t.Fatalf("remove fixture source: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"doctor"}); code != 0 {
+		t.Fatalf("doctor failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "WARNING: install-sources - missing sources: resume-epic@claude ->") {
+		t.Fatalf("unexpected doctor output: %s", stdout.String())
+	}
+}
+
 func TestInfoRejectsExtraArgs(t *testing.T) {
 	dir := t.TempDir()
 
@@ -227,8 +282,242 @@ func TestHostSetupClaudeIsAdditive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read existing claude: %v", err)
 	}
-	if string(raw) != "# Existing\n" {
-		t.Fatalf("expected existing CLAUDE.md to remain unchanged, got %q", string(raw))
+	content := string(raw)
+	if !strings.Contains(content, "# Existing\n") {
+		t.Fatalf("expected existing CLAUDE.md content preserved, got %q", content)
+	}
+	if !strings.Contains(content, "## Epics CLI Guidance") {
+		t.Fatalf("expected Epic guidance appended, got %q", content)
+	}
+}
+
+func TestHostDoctorJSON(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	workdir := t.TempDir()
+	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(workdir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"install", "--host", "claude", fixture}); code != 0 {
+		t.Fatalf("install failed: code=%d stderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"--json", "host", "doctor", "claude"}); code != 0 {
+		t.Fatalf("host doctor failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"claude-managed-dir\"") {
+		t.Fatalf("unexpected host doctor json output: %s", stdout.String())
+	}
+}
+
+func TestStatusForInstalledEpic(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	workdir := t.TempDir()
+	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(workdir, strings.NewReader(""), &stdout, &stderr)
+	if code := app.Run([]string{"install", "--host", "claude", fixture}); code != 0 {
+		t.Fatalf("install failed: code=%d stderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"status", "resume-epic"}); code != 0 {
+		t.Fatalf("status failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Epic: Resume Epic") {
+		t.Fatalf("unexpected status output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Current plan: plans/001-current.md") {
+		t.Fatalf("unexpected status output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Latest log: log/2026-03-08-01.md") {
+		t.Fatalf("unexpected status output: %s", stdout.String())
+	}
+}
+
+func TestStatusJSON(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	fixture := filepath.Join(root, "examples", "fixtures", "resume-epic")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(root, strings.NewReader(""), &stdout, &stderr)
+	if code := app.Run([]string{"--json", "status", fixture}); code != 0 {
+		t.Fatalf("status failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"nextStep\": \"Verify the generated summary output\"") {
+		t.Fatalf("unexpected status json output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "\"latestLogPath\": \"log/2026-03-08-01.md\"") {
+		t.Fatalf("unexpected status json output: %s", stdout.String())
+	}
+}
+
+func TestStateGetJSON(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte("{\"phase\":{\"current\":\"planning\"}}\n"), 0o644); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"--json", "state", "get", "phase.current"}); code != 0 {
+		t.Fatalf("state get failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"key\": \"phase.current\"") {
+		t.Fatalf("expected key in output, got %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "\"planning\"") {
+		t.Fatalf("expected value in output, got %s", stdout.String())
+	}
+}
+
+func TestStateSetAndGet(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"state", "set", "phase.current", "\"planning\""}); code != 0 {
+		t.Fatalf("state set failed: code=%d stderr=%s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"state", "get", "phase.current"}); code != 0 {
+		t.Fatalf("state get failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "planning" {
+		t.Fatalf("expected planning, got %q", stdout.String())
+	}
+}
+
+func TestPlanCurrentJSON(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "plans"), 0o755); err != nil {
+		t.Fatalf("mkdir plans: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "plans", "001-current.md"), []byte("# Current\n\nPlan body\n"), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"--json", "plan", "current"}); code != 0 {
+		t.Fatalf("plan current failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"path\": \"plans/001-current.md\"") {
+		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Plan body") {
+		t.Fatalf("expected plan content in output: %s", stdout.String())
+	}
+}
+
+func TestPlanCreateAndList(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"plan", "create", "Initial", "plan"}); code != 0 {
+		t.Fatalf("plan create failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if strings.TrimSpace(stdout.String()) != "plans/001-initial-plan.md" {
+		t.Fatalf("unexpected create output: %q", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"--json", "plan", "list"}); code != 0 {
+		t.Fatalf("plan list failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"path\": \"plans/001-initial-plan.md\"") {
+		t.Fatalf("unexpected list output: %s", stdout.String())
+	}
+}
+
+func TestLogRecentJSON(t *testing.T) {
+	dir := t.TempDir()
+	logDir := filepath.Join(dir, "log")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		t.Fatalf("mkdir log: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(logDir, "2026-03-08-first.md"), []byte("first\n"), 0o644); err != nil {
+		t.Fatalf("write first log: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(logDir, "2026-03-09-second.md"), []byte("second\n"), 0o644); err != nil {
+		t.Fatalf("write second log: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"--json", "log", "recent", "1"}); code != 0 {
+		t.Fatalf("log recent failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"content\": \"") {
+		t.Fatalf("unexpected log json output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "second") {
+		t.Fatalf("expected most recent log content, got %s", stdout.String())
+	}
+}
+
+func TestLogCreate(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"log", "create", "Session", "1"}); code != 0 {
+		t.Fatalf("log create failed: code=%d stderr=%s", code, stderr.String())
+	}
+	path := strings.TrimSpace(stdout.String())
+	if !strings.HasPrefix(path, "log/") || !strings.HasSuffix(path, "-session-1.md") {
+		t.Fatalf("unexpected created path %q", path)
+	}
+}
+
+func TestCronValidateJSON(t *testing.T) {
+	dir := t.TempDir()
+	cronDir := filepath.Join(dir, "cron.d")
+	if err := os.MkdirAll(cronDir, 0o755); err != nil {
+		t.Fatalf("mkdir cron: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(cronDir, "nightly"), []byte("bad line\n"), 0o644); err != nil {
+		t.Fatalf("write cron file: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"--json", "cron", "validate"}); code != 1 {
+		t.Fatalf("cron validate returned wrong code: code=%d stderr=%s", code, stderr.String())
+	}
+
+	var diagnostics []map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &diagnostics); err != nil {
+		t.Fatalf("unmarshal diagnostics: %v", err)
+	}
+	if len(diagnostics) == 0 {
+		t.Fatalf("expected diagnostics, got %s", stdout.String())
 	}
 }
 

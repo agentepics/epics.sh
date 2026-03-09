@@ -8,6 +8,33 @@ This roadmap turns `epics.sh` into two deliverables:
 The sequence below is designed to get a credible public MVP live quickly while
 leaving room for deeper runtime support later.
 
+## Status Snapshot
+
+Last updated: 2026-03-08
+
+Current implementation status:
+
+- Phase 0: complete
+- Phase 1: complete
+- Phase 2: partial
+  Schema validation exists, but generated registry index work is still pending.
+- Phase 3: complete
+  The CLI ships `init`, `validate`, `install`, `info`, `resume`, `doctor`,
+  and `host setup`. `doctor` now distinguishes authored Epics from installed
+  Epics and warns on missing or drifted local install sources.
+- Phase 5: partial
+  Claude, Gemini, and OpenCode workspace setup are implemented, and `epics
+  host doctor <host>` now exists for all supported hosts. Claude plugin
+  packaging, hooks, and richer runtime integration are still pending. A
+  retained Claude live-chat harness also exists for qualitative adapter
+  feedback in the real live-test container.
+- Phase 6: complete
+  `state`, `status`, `plan`, and `log` helper commands are implemented and
+  test-covered.
+- Phase 7: partial
+  `epics cron validate` is implemented. Hooks, policy loading, and runtime
+  capability reporting are still pending.
+
 ## Phase 0: Product and format definition
 
 Goal: lock the product boundary before writing app code.
@@ -115,6 +142,8 @@ Exit criteria:
 
 Goal: ship the first useful binary independent of deep host integrations.
 
+Status: complete
+
 V1 commands:
 
 - `epics init`
@@ -124,6 +153,25 @@ V1 commands:
 - `epics resume`
 - `epics doctor`
 - `epics host setup claude`
+
+Additional implemented commands beyond the original V1 cut:
+
+- `epics host setup gemini`
+- `epics host setup opencode`
+- `epics host doctor <host>`
+- `epics state get`
+- `epics state set`
+- `epics plan list`
+- `epics plan current`
+- `epics plan create`
+- `epics log recent`
+- `epics log create`
+- `epics cron validate`
+
+Additional implemented behavior:
+
+- `epics doctor` distinguishes authored Epics from installed Epics
+- `epics doctor` reports missing local install sources and source drift warnings
 
 Implementation priorities:
 
@@ -185,6 +233,8 @@ Exit criteria:
 
 Goal: make the CLI useful inside real agent CLIs.
 
+Status: partial
+
 ### 5.1 Claude Code
 
 Target:
@@ -211,6 +261,16 @@ Deliverables:
 - local plugin test flow
 - marketplace submission checklist
 
+Current status:
+
+- workspace setup under `.claude/skills/<slug>/` is implemented
+- generated `.claude/commands/` wrappers are implemented
+- additive `CLAUDE.md` guidance injection is implemented
+- `epics host doctor claude` is implemented
+- a retained live-chat test harness exists for real Claude conversations inside
+  the live container image
+- plugin packaging, hooks, and marketplace prep are still pending
+
 ### 5.2 Gemini CLI
 
 Target:
@@ -219,6 +279,14 @@ Target:
 - hook-driven resume and logging helpers
 - compatibility mapping where Claude and Gemini concepts align
 
+Current status:
+
+- project-local setup under `.gemini/skills/<slug>/` is implemented
+- generated `.gemini/commands/` wrappers are implemented
+- additive `GEMINI.md` guidance injection is implemented
+- `epics host doctor gemini` is implemented
+- settings and hook generation are still pending
+
 ### 5.3 OpenCode
 
 Target:
@@ -226,6 +294,14 @@ Target:
 - adapter or plugin bootstrap for Epic-aware workflows
 - install and resume support first
 - deeper runtime support only where plugin hooks justify it
+
+Current status:
+
+- project-local setup under `.opencode/skills/<slug>/` is implemented
+- generated `.opencode/commands/` wrappers are implemented
+- additive `AGENTS.md` guidance injection is implemented
+- `epics host doctor opencode` is implemented
+- plugin/config bootstrap beyond workspace setup is still pending
 
 Exit criteria:
 
@@ -239,10 +315,13 @@ Exit criteria:
 
 Goal: make the CLI operationally useful for live Epics.
 
+Status: complete
+
 Commands:
 
 - `epics state get`
 - `epics state set`
+- `epics status`
 - `epics plan list`
 - `epics plan current`
 - `epics plan create`
@@ -267,6 +346,8 @@ Exit criteria:
 
 Goal: support the Epic runtime surface where host capabilities allow it.
 
+Status: partial
+
 Deliverables:
 
 - `epics hooks fire <trigger>`
@@ -279,6 +360,13 @@ Important constraint:
 - unsupported runtime features must be surfaced explicitly
 - `SKILL.md` guidance must not be presented as equivalent to real runtime
   dispatch
+
+Current status:
+
+- `epics cron validate` is implemented and test-covered
+- `epics hooks fire <trigger>` is still pending
+- policy loading and diagnostics are still pending
+- runtime capability reporting per host is still pending
 
 Exit criteria:
 
@@ -308,7 +396,8 @@ Later options:
 
 These tracks should run throughout the roadmap:
 
-- testing: golden tests for CLI output, schema tests, host adapter smoke tests
+- testing: golden tests for CLI output, schema tests, host adapter smoke tests,
+  and live host chat transcripts for qualitative adapter feedback
 - documentation: install guides, support matrix, authoring model, troubleshooting
 - release engineering: GitHub releases, Homebrew tap or install script, checksums
 - design: brand system, docs patterns, directory cards, compatibility labeling
@@ -326,7 +415,7 @@ That yields a coherent first launch:
 - public Epic directory
 - installable Go CLI
 - strong Claude and Gemini flows
-- honest partial support for Codex and OpenCode
+- honest partial support for OpenCode and future hosts
 
 ## Open Questions
 

@@ -12,12 +12,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agentepics/epics.sh/internal/cron"
 	"github.com/agentepics/epics.sh/internal/doctor"
 	"github.com/agentepics/epics.sh/internal/epic"
 	"github.com/agentepics/epics.sh/internal/hostapi"
 	"github.com/agentepics/epics.sh/internal/hosts"
 	"github.com/agentepics/epics.sh/internal/install"
+	"github.com/agentepics/epics.sh/internal/logutil"
+	"github.com/agentepics/epics.sh/internal/plan"
 	"github.com/agentepics/epics.sh/internal/resume"
+	"github.com/agentepics/epics.sh/internal/state"
 	"github.com/agentepics/epics.sh/internal/workspace"
 	"golang.org/x/term"
 )
@@ -73,12 +77,22 @@ func (a App) Run(args []string) int {
 		return a.runValidate(flags, rest[1:])
 	case "info":
 		return a.runInfo(flags, rest[1:])
+	case "status":
+		return a.runStatus(flags, rest[1:])
 	case "resume":
 		return a.runResume(flags, rest[1:])
 	case "doctor":
 		return a.runDoctor(flags, rest[1:])
 	case "host":
 		return a.runHost(flags, rest[1:])
+	case "state":
+		return a.runState(flags, rest[1:])
+	case "plan":
+		return a.runPlan(flags, rest[1:])
+	case "log":
+		return a.runLog(flags, rest[1:])
+	case "cron":
+		return a.runCron(flags, rest[1:])
 	default:
 		return a.fail(flags, fmt.Errorf("unknown command %q", rest[0]))
 	}
@@ -308,6 +322,69 @@ func (a App) runResume(flags globalFlags, args []string) int {
 	return 0
 }
 
+func (a App) runStatus(flags globalFlags, args []string) int {
+	arg, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	target, record, err := a.resolvePackageReference(arg)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	pkg, diagnostics, err := epic.Validate(target)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	if epic.HasErrors(diagnostics) {
+		return a.fail(flags, errors.New("cannot inspect status for an invalid Epic package"))
+	}
+
+	result, err := resume.Build(pkg)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	payload := map[string]any{
+		"package":   pkg,
+		"install":   record,
+		"statePath": result.StatePath,
+		"planPath":  result.PlanPath,
+		"nextStep":  result.NextStep,
+	}
+	if len(result.LogPaths) > 0 {
+		payload["latestLogPath"] = result.LogPaths[len(result.LogPaths)-1]
+	}
+	if len(result.RecentLogNotes) > 0 {
+		payload["latestLogNote"] = result.RecentLogNotes[len(result.RecentLogNotes)-1]
+	}
+	if flags.JSON {
+		return a.emitJSON(payload)
+	}
+
+	a.print(fmt.Sprintf("Epic: %s", pkg.Title))
+	a.print(fmt.Sprintf("Slug: %s", pkg.Slug))
+	if record.Host != "" {
+		a.print(fmt.Sprintf("Host: %s", record.Host))
+	}
+	if record.InstalledDir != "" {
+		a.print(fmt.Sprintf("Installed: %s", record.InstalledDir))
+	}
+	if result.PlanPath != "" {
+		a.print(fmt.Sprintf("Current plan: %s", result.PlanPath))
+	}
+	if result.NextStep != "" {
+		a.print(fmt.Sprintf("Next step: %s", result.NextStep))
+	}
+	if len(result.LogPaths) > 0 {
+		a.print(fmt.Sprintf("Latest log: %s", result.LogPaths[len(result.LogPaths)-1]))
+	}
+	if len(result.RecentLogNotes) > 0 {
+		a.print(fmt.Sprintf("Latest note: %s", result.RecentLogNotes[len(result.RecentLogNotes)-1]))
+	}
+	return 0
+}
+
 func (a App) runDoctor(flags globalFlags, args []string) int {
 	if len(args) > 0 {
 		return a.fail(flags, errors.New("doctor does not accept additional arguments"))
@@ -336,20 +413,278 @@ func (a App) runDoctor(flags globalFlags, args []string) int {
 }
 
 func (a App) runHost(flags globalFlags, args []string) int {
-	if len(args) != 2 || args[0] != "setup" {
-		return a.fail(flags, fmt.Errorf("expected: host setup <%s>", strings.Join(hosts.Supported(), "|")))
+	if len(args) != 2 {
+		return a.fail(flags, fmt.Errorf("expected: host <setup|doctor> <%s>", strings.Join(hosts.Supported(), "|")))
 	}
 
-	result, err := hosts.Setup(a.CWD, args[1])
+	adapter, err := hosts.Resolve(args[1])
 	if err != nil {
 		return a.fail(flags, err)
 	}
 
-	if flags.JSON {
-		return a.emitJSON(result)
+	switch args[0] {
+	case "setup":
+		result, err := adapter.Setup(a.CWD)
+		if err != nil {
+			return a.fail(flags, err)
+		}
+		if flags.JSON {
+			return a.emitJSON(result)
+		}
+		a.printHostSetupResult(args[1], result)
+		return 0
+	case "doctor":
+		checks, err := adapter.Doctor(a.CWD)
+		if err != nil {
+			return a.fail(flags, err)
+		}
+		result := doctor.Result{Checks: checks}
+		if flags.JSON {
+			code := a.emitJSON(result)
+			if doctor.HasFailures(result) {
+				return 1
+			}
+			return code
+		}
+		for _, check := range result.Checks {
+			a.print(fmt.Sprintf("%s: %s - %s", strings.ToUpper(check.Status), check.Name, check.Message))
+		}
+		if doctor.HasFailures(result) {
+			return 1
+		}
+		return 0
+	default:
+		return a.fail(flags, fmt.Errorf("expected: host <setup|doctor> <%s>", strings.Join(hosts.Supported(), "|")))
+	}
+}
+
+func (a App) runState(flags globalFlags, args []string) int {
+	if len(args) == 0 {
+		return a.fail(flags, errors.New("expected: state <get|set> ..."))
+	}
+	switch args[0] {
+	case "get":
+		return a.runStateGet(flags, args[1:])
+	case "set":
+		return a.runStateSet(flags, args[1:])
+	default:
+		return a.fail(flags, errors.New("expected: state <get|set> ..."))
+	}
+}
+
+func (a App) runStateGet(flags globalFlags, args []string) int {
+	key, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
 	}
 
-	a.printHostSetupResult(args[1], result)
+	value, snapshot, err := state.Get(a.CWD, key)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	if key == "" {
+		return a.emitJSON(snapshot.Data)
+	}
+	if flags.JSON {
+		return a.emitJSON(map[string]any{
+			"key":   key,
+			"value": value,
+		})
+	}
+	if str, ok := value.(string); ok {
+		a.print(str)
+		return 0
+	}
+	return a.emitJSON(value)
+}
+
+func (a App) runStateSet(flags globalFlags, args []string) int {
+	if len(args) != 2 {
+		return a.fail(flags, errors.New("expected: state set <key> <value>"))
+	}
+
+	snapshot, value, err := state.Set(a.CWD, args[0], args[1])
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	path := epic.RelativePath(a.CWD, snapshot.Path)
+	if flags.JSON {
+		return a.emitJSON(map[string]any{
+			"key":   args[0],
+			"value": value,
+			"path":  path,
+		})
+	}
+	a.print(path)
+	return 0
+}
+
+func (a App) runPlan(flags globalFlags, args []string) int {
+	if len(args) == 0 {
+		return a.fail(flags, errors.New("expected: plan <list|current|create> ..."))
+	}
+	switch args[0] {
+	case "list":
+		return a.runPlanList(flags, args[1:])
+	case "current":
+		return a.runPlanCurrent(flags, args[1:])
+	case "create":
+		return a.runPlanCreate(flags, args[1:])
+	default:
+		return a.fail(flags, errors.New("expected: plan <list|current|create> ..."))
+	}
+}
+
+func (a App) runPlanList(flags globalFlags, args []string) int {
+	if len(args) > 0 {
+		return a.fail(flags, errors.New("plan list does not accept additional arguments"))
+	}
+
+	entries, err := plan.List(a.CWD)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	if flags.JSON {
+		return a.emitJSON(entries)
+	}
+	for _, entry := range entries {
+		if entry.Title != "" {
+			a.print(fmt.Sprintf("%s\t%s", entry.Path, entry.Title))
+			continue
+		}
+		a.print(entry.Path)
+	}
+	return 0
+}
+
+func (a App) runPlanCurrent(flags globalFlags, args []string) int {
+	if len(args) > 0 {
+		return a.fail(flags, errors.New("plan current does not accept additional arguments"))
+	}
+
+	entry, content, err := plan.Current(a.CWD)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	if flags.JSON {
+		return a.emitJSON(map[string]any{
+			"path":    entry.Path,
+			"content": content,
+		})
+	}
+	a.print(strings.TrimRight(content, "\n"))
+	return 0
+}
+
+func (a App) runPlanCreate(flags globalFlags, args []string) int {
+	title := strings.Join(args, " ")
+	entry, err := plan.Create(a.CWD, title)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	if flags.JSON {
+		return a.emitJSON(entry)
+	}
+	a.print(entry.Path)
+	return 0
+}
+
+func (a App) runLog(flags globalFlags, args []string) int {
+	if len(args) == 0 {
+		return a.fail(flags, errors.New("expected: log <recent|create> ..."))
+	}
+	switch args[0] {
+	case "recent":
+		return a.runLogRecent(flags, args[1:])
+	case "create":
+		return a.runLogCreate(flags, args[1:])
+	default:
+		return a.fail(flags, errors.New("expected: log <recent|create> ..."))
+	}
+}
+
+func (a App) runLogRecent(flags globalFlags, args []string) int {
+	limit := 3
+	if len(args) > 1 {
+		return a.fail(flags, errors.New("expected: log recent [N]"))
+	}
+	if len(args) == 1 {
+		n, err := strconv.Atoi(args[0])
+		if err != nil || n < 0 {
+			return a.fail(flags, fmt.Errorf("invalid log count %q", args[0]))
+		}
+		limit = n
+	}
+
+	entries, err := logutil.Recent(a.CWD, limit)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	for i := range entries {
+		entries[i].Path = epic.RelativePath(a.CWD, entries[i].Path)
+	}
+	if flags.JSON {
+		return a.emitJSON(entries)
+	}
+	for i, entry := range entries {
+		if i > 0 {
+			a.print("---")
+		}
+		a.print(strings.TrimRight(entry.Content, "\n"))
+	}
+	return 0
+}
+
+func (a App) runLogCreate(flags globalFlags, args []string) int {
+	path, err := logutil.Create(a.CWD, strings.Join(args, " "))
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	relative := epic.RelativePath(a.CWD, path)
+	if flags.JSON {
+		return a.emitJSON(map[string]any{"path": relative})
+	}
+	a.print(relative)
+	return 0
+}
+
+func (a App) runCron(flags globalFlags, args []string) int {
+	if len(args) != 1 || args[0] != "validate" {
+		return a.fail(flags, errors.New("expected: cron validate"))
+	}
+
+	diagnostics, err := cron.Validate(a.CWD)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+	if flags.JSON {
+		exitCode := 0
+		for _, diagnostic := range diagnostics {
+			if diagnostic.Level == "error" {
+				exitCode = 1
+				break
+			}
+		}
+		if code := a.emitJSON(diagnostics); code != 0 {
+			return code
+		}
+		return exitCode
+	}
+	if len(diagnostics) == 0 {
+		a.print("cron.d is valid.")
+		return 0
+	}
+	for _, diagnostic := range diagnostics {
+		a.print(fmt.Sprintf("%s: %s (%s)", strings.ToUpper(diagnostic.Level), diagnostic.Message, diagnostic.Path))
+	}
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Level == "error" {
+			return 1
+		}
+	}
 	return 0
 }
 
@@ -403,7 +738,7 @@ func (a App) resolvePackageReference(arg string) (string, workspace.InstallRecor
 
 func (a App) printUsage() {
 	a.print("Usage: epics [--json] [--quiet] [--yes] <command>")
-	a.print(fmt.Sprintf("Commands: init, install, validate, info, resume, doctor, host setup <%s>", strings.Join(hosts.Supported(), "|")))
+	a.print(fmt.Sprintf("Commands: init, install, validate, info, status, resume, doctor, host <setup|doctor> <%s>, state, plan, log, cron", strings.Join(hosts.Supported(), "|")))
 }
 
 func parseGlobalFlags(args []string) (globalFlags, []string, error) {

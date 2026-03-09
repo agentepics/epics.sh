@@ -187,6 +187,62 @@ func DefaultScenarios() []Scenario {
 			},
 		},
 		{
+			Name:         "claude-can-use-epics-helpers",
+			Description:  "Validate that Claude can use the new epics helper commands against an installed Epic workspace.",
+			Tags:         []string{"claude", "live", "helpers"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Resume Epic for claude into .claude/skills/resume-epic"},
+				},
+				{
+					Name:           "state-get-next-step",
+					Workdir:        "project/.claude/skills/resume-epic",
+					Args:           []string{"state", "get", "nextStep"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Verify the generated summary output"},
+				},
+				{
+					Name:           "plan-current",
+					Workdir:        "project/.claude/skills/resume-epic",
+					Args:           []string{"plan", "current"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"# Current Plan", "Review recent logs before continuing"},
+				},
+				{
+					Name:           "host-doctor",
+					Workdir:        "project",
+					Args:           []string{"--json", "host", "doctor", "claude"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"claude-managed-dir"`, `"claude-commands"`, `"claude-instructions"`, `"claude-skills"`, `"status": "ok"`},
+				},
+				{
+					Name:    "claude-inspect-helper-files",
+					Program: "claude",
+					Workdir: "project",
+					Args: []string{
+						"-p",
+						"Inspect this workspace. Read .claude/commands and .claude/skills/resume-epic, then return compact JSON only with keys commands and skill_root. Include the exact paths for epics-resume and epics-doctor if they exist.",
+						"--dangerously-skip-permissions",
+						"--output-format",
+						"text",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{".claude/commands/epics-resume.md", ".claude/commands/epics-doctor.md", ".claude/skills/resume-epic"},
+				},
+			},
+		},
+		{
 			Name:         "init-empty-workspace",
 			Description:  "Initialize an empty workspace into a minimal Epic package.",
 			Tags:         []string{"cli", "core"},
@@ -259,6 +315,58 @@ func DefaultScenarios() []Scenario {
 				{Path: ".claude/skills/resume-epic/EPIC.md", MustExist: true},
 				{Path: ".claude/commands/epics-resume.md", MustExist: true},
 				{Path: ".epics/installs.json", MustExist: true, Contains: []string{"resume-epic", "\"host\": \"claude\"", ".claude/skills/resume-epic"}},
+			},
+		},
+		{
+			Name:         "gemini-install-local-epic",
+			Description:  "Install a local Epic fixture into Gemini's local skills folder.",
+			Tags:         []string{"cli", "install", "gemini"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Args:           []string{"install", "--host", "gemini", "./fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Resume Epic for gemini into .gemini/skills/resume-epic", "Gemini workspace setup complete."},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: ".gemini/skills/resume-epic/SKILL.md", MustExist: true},
+				{Path: ".gemini/skills/resume-epic/EPIC.md", MustExist: true},
+				{Path: ".gemini/commands/epics-resume.md", MustExist: true},
+				{Path: ".gemini/commands/epics-info.md", MustExist: true},
+				{Path: ".gemini/commands/epics-doctor.md", MustExist: true},
+				{Path: "GEMINI.md", MustExist: true, Contains: []string{"Epics CLI Guidance"}},
+				{Path: ".epics/installs.json", MustExist: true, Contains: []string{"resume-epic", "\"host\": \"gemini\"", ".gemini/skills/resume-epic"}},
+			},
+		},
+		{
+			Name:         "opencode-install-local-epic",
+			Description:  "Install a local Epic fixture into OpenCode's local skills folder.",
+			Tags:         []string{"cli", "install", "opencode"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Args:           []string{"install", "--host", "opencode", "./fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Resume Epic for opencode into .opencode/skills/resume-epic", "Opencode workspace setup complete."},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: ".opencode/skills/resume-epic/SKILL.md", MustExist: true},
+				{Path: ".opencode/skills/resume-epic/EPIC.md", MustExist: true},
+				{Path: ".opencode/commands/epics-resume.md", MustExist: true},
+				{Path: ".opencode/commands/epics-info.md", MustExist: true},
+				{Path: ".opencode/commands/epics-doctor.md", MustExist: true},
+				{Path: "AGENTS.md", MustExist: true, Contains: []string{"Epics CLI Guidance"}},
+				{Path: ".epics/installs.json", MustExist: true, Contains: []string{"resume-epic", "\"host\": \"opencode\"", ".opencode/skills/resume-epic"}},
 			},
 		},
 		{
@@ -364,6 +472,23 @@ func DefaultScenarios() []Scenario {
 			},
 		},
 		{
+			Name:         "status-stateful-epic",
+			Description:  "Show a compact status summary for a stateful Epic fixture.",
+			Tags:         []string{"cli", "status"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "status",
+					Args:           []string{"status", "./fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Epic: Resume Epic", "Current plan: plans/001-current.md", "Next step: Verify the generated summary output", "Latest log: log/2026-03-08-01.md"},
+				},
+			},
+		},
+		{
 			Name:         "doctor-empty-workspace",
 			Description:  "Run doctor in an empty workspace and assert generic checks only.",
 			Tags:         []string{"cli", "doctor"},
@@ -373,8 +498,173 @@ func DefaultScenarios() []Scenario {
 					Name:              "doctor",
 					Args:              []string{"--json", "doctor"},
 					ExpectExitCode:    0,
-					StdoutContains:    []string{`"managed-dir"`, `"workspace-write"`},
+					StdoutContains:    []string{`"managed-dir"`, `"workspace-write"`, `"authored-package"`, `"installed-epics"`},
 					StdoutNotContains: []string{"claude"},
+				},
+			},
+		},
+		{
+			Name:         "host-doctor-claude-installed-epic",
+			Description:  "Run host doctor against a Claude workspace after installing an Epic.",
+			Tags:         []string{"cli", "doctor", "host", "claude"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Args:           []string{"install", "--host", "claude", "./fixtures/resume-epic"},
+					ExpectExitCode: 0,
+				},
+				{
+					Name:                     "host-doctor",
+					Args:                     []string{"--json", "host", "doctor", "claude"},
+					ExpectNoWorkspaceChanges: true,
+					ExpectExitCode:           0,
+					StdoutContains:           []string{`"claude-managed-dir"`, `"claude-commands"`, `"claude-instructions"`, `"claude-skills"`, `"status": "ok"`},
+				},
+			},
+		},
+		{
+			Name:         "doctor-warns-on-missing-local-source",
+			Description:  "Warn when workspace install metadata points to a missing local Epic source.",
+			Tags:         []string{"cli", "doctor", "warning"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Args:           []string{"install", "--host", "claude", "./fixtures/resume-epic"},
+					ExpectExitCode: 0,
+				},
+				{
+					Name:           "remove-local-source-and-doctor",
+					Program:        "sh",
+					Args:           []string{"-lc", "rm -rf ./fixtures/resume-epic && epics doctor"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"WARNING: install-sources - missing sources: resume-epic@claude ->", "INSTALLED-EPICS: installed-epics - workspace metadata tracks 1 installed Epic(s): resume-epic@claude"},
+				},
+			},
+		},
+		{
+			Name:         "state-helpers-roundtrip",
+			Description:  "Read and write Epic state using state/core.json precedence.",
+			Tags:         []string{"cli", "state"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "state-get-next-step",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"state", "get", "nextStep"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Verify the generated summary output"},
+				},
+				{
+					Name:           "state-set-phase",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"state", "set", "phase.current", "\"planning\""},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"state/core.json"},
+				},
+				{
+					Name:           "state-get-phase-json",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"--json", "state", "get", "phase.current"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"key": "phase.current"`, `"planning"`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "fixtures/resume-epic/state/core.json", MustExist: true, Contains: []string{`"phase"`, `"current": "planning"`, `"nextStep": "Verify the generated summary output"`}},
+			},
+		},
+		{
+			Name:         "plan-helpers-current-create-list",
+			Description:  "Resolve the current plan, create a new plan, and list plans.",
+			Tags:         []string{"cli", "plan"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "plan-current",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"plan", "current"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"# Current Plan", "Verify the generated summary output"},
+				},
+				{
+					Name:           "plan-create",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"plan", "create", "Follow-up", "plan"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"plans/002-follow-up-plan.md"},
+				},
+				{
+					Name:           "plan-list-json",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"--json", "plan", "list"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"path": "plans/001-current.md"`, `"path": "plans/002-follow-up-plan.md"`, `"title": "Follow-up plan"`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "fixtures/resume-epic/plans/002-follow-up-plan.md", MustExist: true, Contains: []string{"# Follow-up plan"}},
+			},
+		},
+		{
+			Name:         "log-helpers-create-recent",
+			Description:  "Create a new log entry and read it back through log recent.",
+			Tags:         []string{"cli", "log"},
+			ImageProfile: "cli",
+			Copies: []CopySpec{
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "log-create",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"log", "create", "Session", "1"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"log/"},
+				},
+				{
+					Name:           "log-recent-json",
+					Workdir:        "fixtures/resume-epic",
+					Args:           []string{"--json", "log", "recent", "1"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"path": "log/`, `title: Session 1`},
+				},
+			},
+		},
+		{
+			Name:         "cron-validate-fixture",
+			Description:  "Validate cron.d entries in an Epic fixture workspace.",
+			Tags:         []string{"cli", "cron"},
+			ImageProfile: "cli",
+			SeedFiles: map[string]string{
+				"cron.d/nightly": "*/15 9 * * 1-5 scripts/run.sh\n",
+				"scripts/run.sh": "#!/bin/sh\necho ok\n",
+			},
+			Steps: []Step{
+				{
+					Name:           "cron-validate",
+					Args:           []string{"cron", "validate"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"cron.d is valid."},
+				},
+				{
+					Name:           "cron-validate-json",
+					Args:           []string{"--json", "cron", "validate"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"null"},
 				},
 			},
 		},
@@ -399,7 +689,7 @@ func DefaultScenarios() []Scenario {
 		},
 		{
 			Name:         "host-setup-claude-preserve-existing",
-			Description:  "Preserve an existing CLAUDE.md during Claude setup.",
+			Description:  "Append Epic guidance to an existing CLAUDE.md during Claude setup.",
 			Tags:         []string{"cli", "host", "claude"},
 			ImageProfile: "cli",
 			SeedFiles: map[string]string{
@@ -410,11 +700,11 @@ func DefaultScenarios() []Scenario {
 					Name:           "host-setup",
 					Args:           []string{"host", "setup", "claude"},
 					ExpectExitCode: 0,
-					StdoutContains: []string{"Skipped (content differs):", "CLAUDE.md"},
+					StdoutContains: []string{"Claude workspace setup complete.", "CLAUDE.md"},
 				},
 			},
 			Files: []FileAssertion{
-				{Path: "CLAUDE.md", MustExist: true, Equals: "# Existing\n"},
+				{Path: "CLAUDE.md", MustExist: true, Contains: []string{"# Existing", "Epics CLI Guidance"}},
 				{Path: ".claude/commands/epics-info.md", MustExist: true},
 				{Path: ".epics/hosts/claude/README.md", MustExist: true, Contains: []string{".claude/skills/<slug>/"}},
 			},

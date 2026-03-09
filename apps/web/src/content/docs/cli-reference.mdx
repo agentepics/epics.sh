@@ -51,6 +51,16 @@ epics info
 epics info <path-or-slug>
 ```
 
+## epics status
+
+Display a compact workflow summary for an Epic. Accepts an optional path or
+installed slug and reports the current plan, next step, and latest log note.
+
+```bash
+epics status
+epics status <path-or-slug>
+```
+
 ## epics resume
 
 Re-enter a long-running workflow without reconstructing context from scratch.
@@ -63,8 +73,8 @@ epics resume <path-or-slug>
 
 ## epics doctor
 
-Run workspace health checks. Reports status for each check with pass/fail and a
-diagnostic message.
+Run workspace health checks. Reports status for managed metadata, authored Epic
+presence, installed Epics, and local install source health.
 
 ```bash
 epics doctor

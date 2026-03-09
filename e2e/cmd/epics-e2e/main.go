@@ -43,6 +43,8 @@ func run(args []string) int {
 		return runList()
 	case "run":
 		return runScenarios(repoRoot, args[1:])
+	case "chat":
+		return runChat(repoRoot, args[1:])
 	default:
 		printUsage()
 		return 1
@@ -107,6 +109,61 @@ func runScenarios(repoRoot string, args []string) int {
 	return 0
 }
 
+func runChat(repoRoot string, args []string) int {
+	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	artifactsDir := fs.String("artifacts-dir", filepath.Join(repoRoot, ".e2e-artifacts"), "artifact output directory")
+	containerName := fs.String("container-name", "", "optional Docker container name")
+	workspaceFixture := fs.String("workspace-fixture", filepath.Join("e2e", "fixtures", "claude-web-project"), "workspace fixture to mount into the chat container")
+	epicFixture := fs.String("epic-fixture", filepath.Join("examples", "fixtures", "resume-epic"), "Epic fixture to install before chatting")
+	cleanup := fs.Bool("cleanup", false, "remove the container after the scripted chat completes")
+	jsonOutput := fs.Bool("json", false, "emit JSON result")
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+
+	result, err := harness.RunLiveChat(repoRoot, harness.ChatOptions{
+		ArtifactsBase:    *artifactsDir,
+		ContainerName:    *containerName,
+		KeepContainer:    !*cleanup,
+		WorkspaceFixture: *workspaceFixture,
+		EpicFixture:      *epicFixture,
+	})
+	if *jsonOutput {
+		raw, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			fmt.Fprintln(os.Stderr, marshalErr.Error())
+			return 1
+		}
+		raw = append(raw, '\n')
+		_, _ = os.Stdout.Write(raw)
+	} else {
+		fmt.Fprintf(os.Stdout, "Run ID: %s\n", result.RunID)
+		fmt.Fprintf(os.Stdout, "Artifacts: %s\n", result.ArtifactRoot)
+		fmt.Fprintf(os.Stdout, "Image: %s\n", result.ImageTag)
+		fmt.Fprintf(os.Stdout, "Container: %s\n", result.ContainerName)
+		fmt.Fprintf(os.Stdout, "Transcript: %s\n", result.TranscriptPath)
+		if result.HostDoctorPath != "" {
+			fmt.Fprintf(os.Stdout, "Host doctor: %s\n", result.HostDoctorPath)
+		}
+		if result.ShellCommand != "" {
+			fmt.Fprintf(os.Stdout, "Shell: %s\n", result.ShellCommand)
+		}
+		if result.CleanupCommand != "" {
+			fmt.Fprintf(os.Stdout, "Cleanup: %s\n", result.CleanupCommand)
+		} else {
+			fmt.Fprintln(os.Stdout, "Cleanup: container removed automatically after chat")
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
+	return 0
+}
+
 func printSummary(summary harness.Summary) {
 	fmt.Fprintf(os.Stdout, "Run ID: %s\n", summary.RunID)
 	for _, profile := range sortedProfiles(summary.ImageTags) {
@@ -142,7 +199,7 @@ func printSummary(summary harness.Summary) {
 
 func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: epics-e2e <command>")
-	fmt.Fprintln(os.Stderr, "Commands: list, run")
+	fmt.Fprintln(os.Stderr, "Commands: list, run, chat")
 }
 
 func loadEnvFile(path string) error {

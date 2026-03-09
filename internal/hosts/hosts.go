@@ -6,6 +6,8 @@ import (
 
 	"github.com/agentepics/epics.sh/internal/hostapi"
 	"github.com/agentepics/epics.sh/internal/hosts/claude"
+	"github.com/agentepics/epics.sh/internal/hosts/gemini"
+	"github.com/agentepics/epics.sh/internal/hosts/opencode"
 )
 
 func Supported() []string {
@@ -34,5 +36,7 @@ func Setup(cwd, host string) (hostapi.Result, error) {
 }
 
 var adapters = map[string]hostapi.Adapter{
-	"claude": claude.Adapter{},
+	"claude":   claude.Adapter{},
+	"gemini":   gemini.Adapter{},
+	"opencode": opencode.Adapter{},
 }
