@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agentepics/epics.sh/internal/epic"
 	"github.com/agentepics/epics.sh/internal/workspace"
 )
 
@@ -26,14 +27,15 @@ type Snapshot struct {
 }
 
 func ResolvePath(cwd string) (string, bool, error) {
-	corePath := filepath.Join(cwd, filepath.FromSlash(stateCorePath))
+	specVersion := detectSpecVersion(cwd)
+	corePath := epic.RuntimePath(cwd, specVersion, stateCorePath)
 	if _, err := os.Stat(corePath); err == nil {
 		return corePath, true, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", false, err
 	}
 
-	statePath := filepath.Join(cwd, stateFileName)
+	statePath := epic.RuntimePath(cwd, specVersion, stateFileName)
 	if _, err := os.Stat(statePath); err == nil {
 		return statePath, true, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -41,6 +43,14 @@ func ResolvePath(cwd string) (string, bool, error) {
 	}
 
 	return statePath, false, nil
+}
+
+func detectSpecVersion(cwd string) string {
+	pkg, err := epic.Load(cwd)
+	if err != nil {
+		return ""
+	}
+	return pkg.SpecVersion
 }
 
 func Read(cwd string) (Snapshot, error) {

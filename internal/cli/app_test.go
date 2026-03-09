@@ -2,12 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/agentepics/epics.sh/internal/daemon"
+	daemonstore "github.com/agentepics/epics.sh/internal/daemon/store"
 	"github.com/agentepics/epics.sh/internal/fsutil"
 	"github.com/agentepics/epics.sh/internal/testutil"
 )
@@ -172,7 +176,7 @@ func TestResumeUsesStateAndPlan(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Next step: Verify the generated summary output") {
 		t.Fatalf("expected next step in output, got %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "Current plan: plans/001-current.md") {
+	if !strings.Contains(stdout.String(), "Current plan: runtime/plans/001-current.md") {
 		t.Fatalf("expected plan path in output, got %s", stdout.String())
 	}
 }
@@ -334,10 +338,10 @@ func TestStatusForInstalledEpic(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Epic: Resume Epic") {
 		t.Fatalf("unexpected status output: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "Current plan: plans/001-current.md") {
+	if !strings.Contains(stdout.String(), "Current plan: runtime/plans/001-current.md") {
 		t.Fatalf("unexpected status output: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "Latest log: log/2026-03-08-01.md") {
+	if !strings.Contains(stdout.String(), "Latest log: runtime/log/2026-03-08-01.md") {
 		t.Fatalf("unexpected status output: %s", stdout.String())
 	}
 }
@@ -355,7 +359,7 @@ func TestStatusJSON(t *testing.T) {
 	if !strings.Contains(stdout.String(), "\"nextStep\": \"Verify the generated summary output\"") {
 		t.Fatalf("unexpected status json output: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "\"latestLogPath\": \"log/2026-03-08-01.md\"") {
+	if !strings.Contains(stdout.String(), "\"latestLogPath\": \"runtime/log/2026-03-08-01.md\"") {
 		t.Fatalf("unexpected status json output: %s", stdout.String())
 	}
 }
@@ -519,6 +523,133 @@ func TestCronValidateJSON(t *testing.T) {
 	if len(diagnostics) == 0 {
 		t.Fatalf("expected diagnostics, got %s", stdout.String())
 	}
+}
+
+func TestDaemonWorkspaceAndRouteCommands(t *testing.T) {
+	home := newShortCLIDir(t, "epicsd-cli-home")
+	workspaceDir := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceDir, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	startTestDaemonForCLI(t, home)
+	t.Setenv("EPICSD_HOME", home)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(workspaceDir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"workspace", "register", "--name", "repo-a"}); code != 0 {
+		t.Fatalf("workspace register failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "repo-a") {
+		t.Fatalf("unexpected workspace register output: %s", stdout.String())
+	}
+	workspaceID := strings.Fields(strings.TrimSpace(stdout.String()))[0]
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"route", "upsert", "--type", "webhook", "--workspace", workspaceID, "--epic", "resume-epic", "--provider", "github", "--endpoint", "repo-a", "--preferred-adapter", "claude", "--auth", "bearer", "--secret", "token"}); code != 0 {
+		t.Fatalf("route upsert failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "webhook:github:repo-a") {
+		t.Fatalf("unexpected route upsert output: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"run", "list"}); code != 0 {
+		t.Fatalf("run list failed: code=%d stderr=%s", code, stderr.String())
+	}
+}
+
+func TestDaemonStatusJSON(t *testing.T) {
+	home := newShortCLIDir(t, "epicsd-cli-home")
+	startTestDaemonForCLI(t, home)
+	t.Setenv("EPICSD_HOME", home)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(t.TempDir(), strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"--json", "daemon", "status"}); code != 0 {
+		t.Fatalf("daemon status failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"webhookHTTPAddr\"") {
+		t.Fatalf("unexpected daemon status output: %s", stdout.String())
+	}
+}
+
+func startTestDaemonForCLI(t *testing.T, home string) {
+	t.Helper()
+	binDir := t.TempDir()
+	epicsPath := filepath.Join(binDir, "epics")
+	claudePath := filepath.Join(binDir, "claude")
+	if err := os.WriteFile(epicsPath, []byte("#!/bin/sh\necho \"resume:$2\"\n"), 0o755); err != nil {
+		t.Fatalf("write epics stub: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write claude stub: %v", err)
+	}
+
+	st := daemonstore.Open(home)
+	cfg := daemonstore.DefaultConfig(home)
+	cfg.WebhookHTTPAddr = "127.0.0.1:0"
+	cfg.AdminSocketPath = filepath.Join(home, "epicsd.sock")
+	if err := st.SaveConfig(cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	server, err := daemon.New(daemon.Options{
+		Home:         home,
+		EpicsBinary:  epicsPath,
+		ClaudeBinary: claudePath,
+	})
+	if err != nil {
+		t.Fatalf("new daemon: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("daemon shutdown: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for daemon shutdown")
+		}
+	})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		client, err := daemon.NewClient(home)
+		if err == nil {
+			var status map[string]any
+			if err := client.Call(context.Background(), "daemon.status", map[string]any{}, &status); err == nil {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("daemon did not become ready")
+}
+
+func newShortCLIDir(t *testing.T, prefix string) string {
+	t.Helper()
+	id, err := daemonstore.GenerateID(prefix + "-")
+	if err != nil {
+		t.Fatalf("generate id: %v", err)
+	}
+	path := filepath.Join(os.TempDir(), id)
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir short dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(path) })
+	return path
 }
 
 func copyDir(src, dest string) error {

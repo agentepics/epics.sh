@@ -284,7 +284,10 @@ func finalizeScenarioArtifacts(keep bool, scenarioDir string, result ScenarioRes
 
 func prepareWorkspace(repoRoot, workspaceDir string, scenario Scenario, log *operationLogger) error {
 	for _, copySpec := range scenario.Copies {
-		src := filepath.Join(repoRoot, filepath.FromSlash(copySpec.From))
+		src := copySpec.From
+		if !filepath.IsAbs(src) {
+			src = filepath.Join(repoRoot, filepath.FromSlash(copySpec.From))
+		}
 		dest := filepath.Join(workspaceDir, filepath.FromSlash(copySpec.To))
 		log.Log("INFO", scenario.Name, "copy", "start", fmt.Sprintf("%s -> %s", src, dest))
 		if err := copyPath(src, dest); err != nil {

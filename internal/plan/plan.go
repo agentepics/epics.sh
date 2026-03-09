@@ -20,7 +20,8 @@ type Entry struct {
 }
 
 func List(cwd string) ([]Entry, error) {
-	dir := filepath.Join(cwd, "plans")
+	specVersion := detectSpecVersion(cwd)
+	dir := epic.RuntimePath(cwd, specVersion, "plans")
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -34,7 +35,7 @@ func List(cwd string) ([]Entry, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
 			continue
 		}
-		relPath := filepath.ToSlash(filepath.Join("plans", entry.Name()))
+		relPath := epic.RelativePath(cwd, filepath.Join(dir, entry.Name()))
 		title, err := readTitle(filepath.Join(dir, entry.Name()))
 		if err != nil {
 			return nil, err
@@ -107,8 +108,9 @@ func Create(cwd, title string) (Entry, error) {
 		slug = "plan"
 	}
 
-	relPath := filepath.ToSlash(filepath.Join("plans", fmt.Sprintf("%03d-%s.md", number, slug)))
-	path := filepath.Join(cwd, filepath.FromSlash(relPath))
+	specVersion := detectSpecVersion(cwd)
+	path := epic.RuntimePath(cwd, specVersion, filepath.ToSlash(filepath.Join("plans", fmt.Sprintf("%03d-%s.md", number, slug))))
+	relPath := epic.RelativePath(cwd, path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return Entry{}, err
 	}
@@ -124,6 +126,14 @@ func Create(cwd, title string) (Entry, error) {
 	}
 
 	return Entry{Path: relPath, Title: title}, nil
+}
+
+func detectSpecVersion(cwd string) string {
+	pkg, err := epic.Load(cwd)
+	if err != nil {
+		return ""
+	}
+	return pkg.SpecVersion
 }
 
 func nextNumber(cwd string) (int, error) {

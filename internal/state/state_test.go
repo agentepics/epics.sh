@@ -210,6 +210,26 @@ func TestSetConcurrent(t *testing.T) {
 	}
 }
 
+func TestSetUsesRuntimeStateForSpec051(t *testing.T) {
+	dir := t.TempDir()
+	writeRuntimeEpicRoot(t, dir)
+
+	snapshot, _, err := Set(dir, "phase.current", `"planning"`)
+	if err != nil {
+		t.Fatalf("set runtime state: %v", err)
+	}
+	expectedPath := filepath.Join(dir, "runtime", "state.json")
+	if snapshot.Path != expectedPath {
+		t.Fatalf("expected runtime state path %s, got %s", expectedPath, snapshot.Path)
+	}
+
+	data := readJSONFile(t, expectedPath)
+	phase := data["phase"].(map[string]any)
+	if phase["current"] != "planning" {
+		t.Fatalf("expected runtime phase.current, got %#v", phase["current"])
+	}
+}
+
 func writeJSONFile(t *testing.T, path string, data map[string]any) {
 	t.Helper()
 	raw, err := json.MarshalIndent(data, "", "  ")
@@ -236,4 +256,14 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 		t.Fatalf("unmarshal json: %v", err)
 	}
 	return data
+}
+
+func writeRuntimeEpicRoot(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# Skill\n"), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "EPIC.md"), []byte("---\nspec_version: 0.5.1\nid: runtime-epic\n---\n\n# Runtime Epic\n"), 0o644); err != nil {
+		t.Fatalf("write epic: %v", err)
+	}
 }

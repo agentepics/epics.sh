@@ -4,6 +4,7 @@
 
 - the `epics.sh` website
 - the `epics` Go CLI
+- the `epicsd` user daemon
 
 The goal is to make Agent Epics easy to publish, discover, install, and run
 across supported AI coding agent CLIs such as Claude Code, Gemini CLI, and
@@ -22,8 +23,8 @@ This repo is intended to hold:
 
 The Epic model itself is informed by the sibling `agentepics` reference work,
 where an Epic is a valid `SKILL.md` package plus an `EPIC.md` file and optional
-runtime surfaces such as `plans/`, `state/`, `log/`, `hooks/`, `cron.d/`, and
-`policy.yml`.
+runtime surfaces such as `runtime/plans/`, `runtime/state/`, `runtime/log/`,
+`hooks/`, `cron.d/`, and `policy.yml`.
 
 Public curated sample Epics authored by the project should live in the separate
 `agentepics/epics` repository. This repo keeps the registry, schemas, website,
@@ -40,7 +41,8 @@ CLI, and local development fixtures.
 ├── apps/
 │   └── web/                  # website app
 ├── cmd/
-│   └── epics/                # Go CLI entrypoint
+│   ├── epics/                # Go CLI entrypoint
+│   └── epicsd/               # Shared per-user daemon entrypoint
 ├── internal/                 # shared Go packages
 ├── registry/
 │   ├── epics/                # registry metadata and listing entries
@@ -85,24 +87,19 @@ Current supported hosts:
 
 ## Current Status
 
-This repo is still in the planning and scaffold stage.
+This repo now ships a working CLI and a lean Phase B daemon slice.
 
 Implemented so far:
 
-- repo scaffold
-- monorepo directory structure
+- `epics` CLI install, validate, info, status, resume, doctor, host setup,
+  state, plan, log, and cron validation flows
+- host adapters for Claude Code, Gemini CLI, and OpenCode
+- `epicsd` shared per-user daemon with Unix-socket admin control
+- persisted daemon workspaces, routes, run ledger, and secret storage
+- localhost-only webhook ingress and in-process cron scheduling
+- launchd and systemd user-service integration
 - first static Astro website version under `apps/web`
 - seed registry metadata for Epic listings and CLI releases
-- planning docs
-- daemon/runtime design notes
-- adapter research docs
-
-Not implemented yet:
-
-- working `epics` CLI beyond a stub
-- registry schemas
-- host adapter code
-- CI/release automation
 
 ## Docs Map
 
@@ -117,18 +114,22 @@ Start here:
 
 ## Development
 
-Current CLI stub:
+Current local CLI entrypoints:
 
 ```bash
 go run ./cmd/epics
+go run ./cmd/epicsd
 ```
 
-Expected next implementation tracks:
+Useful daemon commands:
 
-1. build out the Go CLI skeleton under `cmd/epics` and `internal/`
-2. initialize the website in `apps/web`
-3. define registry and adapter schemas in `registry/schemas/`
-4. translate docs into implementation checklists
+```bash
+epics daemon install
+epics daemon status
+epics workspace register
+epics route list
+epics run list
+```
 
 ## Non-goals for V1
 

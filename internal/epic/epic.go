@@ -18,20 +18,22 @@ type Diagnostic struct {
 }
 
 type Package struct {
-	Root       string   `json:"root"`
-	Slug       string   `json:"slug"`
-	EpicID     string   `json:"epicId,omitempty"`
-	Title      string   `json:"title"`
-	Summary    string   `json:"summary,omitempty"`
-	SkillPath  string   `json:"skillPath,omitempty"`
-	EpicPath   string   `json:"epicPath,omitempty"`
-	StatePath  string   `json:"statePath,omitempty"`
-	StateCore  string   `json:"stateCorePath,omitempty"`
-	PlanFiles  []string `json:"planFiles,omitempty"`
-	LogFiles   []string `json:"logFiles,omitempty"`
-	Roadmap    string   `json:"roadmapPath,omitempty"`
-	Decisions  string   `json:"decisionsPath,omitempty"`
-	PolicyPath string   `json:"policyPath,omitempty"`
+	Root        string   `json:"root"`
+	Slug        string   `json:"slug"`
+	SpecVersion string   `json:"specVersion,omitempty"`
+	EpicID      string   `json:"epicId,omitempty"`
+	Title       string   `json:"title"`
+	Summary     string   `json:"summary,omitempty"`
+	SkillPath   string   `json:"skillPath,omitempty"`
+	EpicPath    string   `json:"epicPath,omitempty"`
+	LiveRoot    string   `json:"liveRoot,omitempty"`
+	StatePath   string   `json:"statePath,omitempty"`
+	StateCore   string   `json:"stateCorePath,omitempty"`
+	PlanFiles   []string `json:"planFiles,omitempty"`
+	LogFiles    []string `json:"logFiles,omitempty"`
+	Roadmap     string   `json:"roadmapPath,omitempty"`
+	Decisions   string   `json:"decisionsPath,omitempty"`
+	PolicyPath  string   `json:"policyPath,omitempty"`
 }
 
 func Load(root string) (Package, error) {
@@ -55,20 +57,22 @@ func Load(root string) (Package, error) {
 
 	pkg.SkillPath = firstExisting(absRoot, "SKILL.md")
 	pkg.EpicPath = firstExisting(absRoot, "EPIC.md")
-	pkg.StateCore = firstExisting(absRoot, filepath.Join("state", "core.json"))
-	pkg.StatePath = firstExisting(absRoot, "state.json")
-	pkg.Roadmap = firstExisting(absRoot, "ROADMAP.md")
-	pkg.Decisions = firstExisting(absRoot, "DECISIONS.md")
 	pkg.PolicyPath = firstExisting(absRoot, "policy.yml")
-	pkg.PlanFiles = collectFiles(filepath.Join(absRoot, "plans"))
-	pkg.LogFiles = collectFiles(filepath.Join(absRoot, "log"))
 
 	if frontmatter := parseFrontmatter(readFile(pkg.EpicPath)); len(frontmatter) > 0 {
 		pkg.EpicID = strings.TrimSpace(frontmatter["id"])
+		pkg.SpecVersion = strings.TrimSpace(frontmatter["spec_version"])
 	}
 	if pkg.EpicID == "" {
 		pkg.EpicID = pkg.Slug
 	}
+	pkg.LiveRoot = LiveRoot(absRoot, pkg.SpecVersion)
+	pkg.StateCore = firstExisting(absRoot, filepath.Join(RelativeLiveRoot(pkg.SpecVersion), "state", "core.json"))
+	pkg.StatePath = firstExisting(absRoot, filepath.Join(RelativeLiveRoot(pkg.SpecVersion), "state.json"))
+	pkg.Roadmap = firstExisting(absRoot, filepath.Join(RelativeLiveRoot(pkg.SpecVersion), "ROADMAP.md"))
+	pkg.Decisions = firstExisting(absRoot, filepath.Join(RelativeLiveRoot(pkg.SpecVersion), "DECISIONS.md"))
+	pkg.PlanFiles = collectFiles(filepath.Join(pkg.LiveRoot, "plans"))
+	pkg.LogFiles = collectFiles(filepath.Join(pkg.LiveRoot, "log"))
 
 	title := extractHeading(readFile(pkg.EpicPath))
 	if isPlaceholderHeading(title) {
@@ -124,10 +128,11 @@ func Validate(root string) (Package, []Diagnostic, error) {
 		diagnostics = append(diagnostics, validateMarkdown(pkg.Root, pkg.EpicPath, "EPIC.md", "epic")...)
 	}
 
-	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StatePath, "state.json")...)
-	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StateCore, filepath.Join("state", "core.json"))...)
-	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.Root, "plans"), "plans")...)
-	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.Root, "log"), "log")...)
+	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StatePath, relativeLivePath(pkg, "state.json"))...)
+	diagnostics = append(diagnostics, validateJSONFile(pkg.Root, pkg.StateCore, relativeLivePath(pkg, filepath.Join("state", "core.json")))...)
+	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.LiveRoot, "plans"), relativeLivePath(pkg, "plans"))...)
+	diagnostics = append(diagnostics, validateDirectory(pkg.Root, filepath.Join(pkg.LiveRoot, "log"), relativeLivePath(pkg, "log"))...)
+	diagnostics = append(diagnostics, validateRuntimeLayout(pkg)...)
 
 	sort.SliceStable(diagnostics, func(i, j int) bool {
 		if diagnostics[i].Level == diagnostics[j].Level {
@@ -275,6 +280,33 @@ func LatestFiles(paths []string, limit int) []string {
 	return sorted[len(sorted)-limit:]
 }
 
+func UsesRuntimeLayout(specVersion string) bool {
+	return strings.TrimSpace(specVersion) == "0.5.1"
+}
+
+func RelativeLiveRoot(specVersion string) string {
+	if UsesRuntimeLayout(specVersion) {
+		return "runtime"
+	}
+	return "."
+}
+
+func LiveRoot(root, specVersion string) string {
+	if UsesRuntimeLayout(specVersion) {
+		return filepath.Join(root, "runtime")
+	}
+	return root
+}
+
+func RuntimePath(root, specVersion string, relative string) string {
+	parts := []string{root}
+	if UsesRuntimeLayout(specVersion) {
+		parts = append(parts, "runtime")
+	}
+	parts = append(parts, filepath.FromSlash(relative))
+	return filepath.Join(parts...)
+}
+
 func firstExisting(root string, relative string) string {
 	path := filepath.Join(root, relative)
 	if _, err := os.Stat(path); err == nil {
@@ -392,6 +424,42 @@ func validateDirectory(root, path, relPath string) []Diagnostic {
 		}}
 	}
 	return nil
+}
+
+func validateRuntimeLayout(pkg Package) []Diagnostic {
+	if !UsesRuntimeLayout(pkg.SpecVersion) {
+		return nil
+	}
+
+	var diagnostics []Diagnostic
+	for _, relPath := range []string{
+		"state.json",
+		filepath.Join("state", "core.json"),
+		"plans",
+		"log",
+		"ROADMAP.md",
+		"DECISIONS.md",
+		"artifacts",
+	} {
+		legacyPath := filepath.Join(pkg.Root, filepath.FromSlash(relPath))
+		if _, err := os.Stat(legacyPath); err == nil {
+			diagnostics = append(diagnostics, Diagnostic{
+				Level:   "error",
+				Code:    "legacy_live_state_path",
+				Path:    filepath.ToSlash(relPath),
+				Message: fmt.Sprintf("%s must move under runtime/ for spec_version %s", filepath.ToSlash(relPath), pkg.SpecVersion),
+			})
+		}
+	}
+	return diagnostics
+}
+
+func relativeLivePath(pkg Package, relPath string) string {
+	relPath = filepath.ToSlash(relPath)
+	if UsesRuntimeLayout(pkg.SpecVersion) {
+		return filepath.ToSlash(filepath.Join("runtime", relPath))
+	}
+	return relPath
 }
 
 func readFile(path string) string {

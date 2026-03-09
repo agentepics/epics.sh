@@ -243,6 +243,357 @@ func DefaultScenarios() []Scenario {
 			},
 		},
 		{
+			Name:         "claude-epicsd-webhook-dispatch",
+			Description:  "Start epicsd in the live Claude container, register the workspace, deliver a localhost webhook, and verify a successful daemon dispatch through Claude.",
+			Tags:         []string{"claude", "live", "daemon"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Resume Epic for claude into .claude/skills/resume-epic"},
+				},
+				{
+					Name:    "start-epicsd",
+					Program: "sh",
+					Workdir: "project",
+					Args:    []string{"-lc", `mkdir -p "$EPICSD_HOME" .epicsd-artifacts; epicsd > "$EPICSD_HOME/epicsd.log" 2>&1 & pid=$!; trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT; echo "$pid" > .epicsd-artifacts/epicsd.pid; for i in $(seq 1 50); do [ -S "$EPICSD_HOME/epicsd.sock" ] && break; sleep 0.2; done; [ -S "$EPICSD_HOME/epicsd.sock" ] || { cat "$EPICSD_HOME/epicsd.log"; exit 1; }; cp "$EPICSD_HOME/config.json" .epicsd-artifacts/config.json; epics --json daemon status > .epicsd-artifacts/status.json; WS=$(epics --json workspace register . --name live-project | tee .epicsd-artifacts/workspace.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'); cp "$EPICSD_HOME/workspaces.json" .epicsd-artifacts/workspaces.json; epics --json route upsert --type webhook --workspace "$WS" --epic resume-epic --provider github --endpoint live-project --preferred-adapter claude --auth bearer --secret live-token > .epicsd-artifacts/route.json; cp "$EPICSD_HOME/routes.json" .epicsd-artifacts/routes.json; ADDR=$(python3 -c 'import json;print(json.load(open(".epicsd-artifacts/status.json"))["webhookHTTPAddr"])'); python3 -c 'import sys,urllib.request; addr=sys.argv[1]; req=urllib.request.Request(f"http://{addr}/v1/webhooks/github/live-project", data=b"{\"event\":\"ping\"}", method="POST", headers={"Authorization":"Bearer live-token","Content-Type":"application/json","X-GitHub-Delivery":"live-delivery-1"}); resp=urllib.request.urlopen(req); print(resp.status); print(resp.read().decode())' "$ADDR" > .epicsd-artifacts/webhook.txt; for i in $(seq 1 60); do epics --json run list --limit 5 > .epicsd-artifacts/runs.json; cp "$EPICSD_HOME/epicsd.log" .epicsd-artifacts/epicsd.log; python3 -c 'import json,sys; runs=json.load(open(".epicsd-artifacts/runs.json")) or []; sys.exit(0 if any(r.get("routeId")=="webhook:github:live-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude" for r in runs) else 1)' && break; sleep 1; done; python3 -c 'import json,sys; runs=json.load(open(".epicsd-artifacts/runs.json")) or []; sys.exit(0 if any(r.get("routeId")=="webhook:github:live-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude" for r in runs) else 1)' || { cat .epicsd-artifacts/runs.json; cat .epicsd-artifacts/epicsd.log; exit 1; }; cat .epicsd-artifacts/status.json; cat .epicsd-artifacts/workspace.json; cat .epicsd-artifacts/route.json; cat .epicsd-artifacts/webhook.txt; cat .epicsd-artifacts/runs.json`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-home",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"adminSocketPath": "/tmp/epicsd-home/epicsd.sock"`, `"id": "ws_`, `"displayName": "live-project"`, `"id": "webhook:github:live-project"`, `"selectedAdapter": "claude"`, "202", `"queued":true`, `"routeId": "webhook:github:live-project"`, `"outcome": "succeeded"`, `"adapter": "claude"`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.epicsd-artifacts/config.json", MustExist: true, Contains: []string{"127.0.0.1", "epicsd.sock"}},
+				{Path: "project/.epicsd-artifacts/workspaces.json", MustExist: true, Contains: []string{"live-project", "/workspace/project"}},
+				{Path: "project/.epicsd-artifacts/routes.json", MustExist: true, Contains: []string{"webhook:github:live-project", "\"epicSlug\": \"resume-epic\""}},
+				{Path: "project/.epicsd-artifacts/status.json", MustExist: true, Contains: []string{`"status": "ok"`, `"webhookHTTPAddr": "127.0.0.1:`}},
+				{Path: "project/.epicsd-artifacts/runs.json", MustExist: true, Contains: []string{`"routeId": "webhook:github:live-project"`, `"outcome": "succeeded"`}},
+				{Path: "project/.epicsd-artifacts/epicsd.log", MustExist: true, Contains: []string{"route=webhook:github:live-project", "adapter=claude"}},
+			},
+		},
+		{
+			Name:         "claude-epicsd-restart-recovery",
+			Description:  "Run a live Claude webhook route through epicsd, restart the daemon, and prove persisted workspace/route state survives into a second successful dispatch.",
+			Tags:         []string{"claude", "live", "daemon", "restart"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/resume-epic", To: "fixtures/resume-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-local",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/resume-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Resume Epic for claude into .claude/skills/resume-epic"},
+				},
+				{
+					Name:    "restart-recovery",
+					Program: "sh",
+					Workdir: "project",
+					Args: []string{"-lc", `
+mkdir -p "$EPICSD_HOME" .epicsd-restart
+pids=""
+start_daemon() {
+  epicsd >> "$EPICSD_HOME/epicsd.log" 2>&1 &
+  current_pid=$!
+  pids="$pids $current_pid"
+  for i in $(seq 1 50); do
+    [ -S "$EPICSD_HOME/epicsd.sock" ] && return 0
+    sleep 0.2
+  done
+  cat "$EPICSD_HOME/epicsd.log"
+  return 1
+}
+stop_daemon() {
+  kill "$current_pid" >/dev/null 2>&1 || true
+  wait "$current_pid" >/dev/null 2>&1 || true
+  for i in $(seq 1 50); do
+    [ ! -S "$EPICSD_HOME/epicsd.sock" ] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+trap 'for p in $pids; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
+
+start_daemon
+epics --json daemon status > .epicsd-restart/status-before.json
+WS=$(epics --json workspace register . --name restart-project | tee .epicsd-restart/workspace-before.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+epics --json route upsert --type webhook --workspace "$WS" --epic resume-epic --provider github --endpoint restart-project --preferred-adapter claude --auth bearer --secret restart-token > .epicsd-restart/route-before.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-restart/workspaces-before.json
+cp "$EPICSD_HOME/routes.json" .epicsd-restart/routes-before.json
+ADDR=$(python3 -c 'import json;print(json.load(open(".epicsd-restart/status-before.json"))["webhookHTTPAddr"])')
+python3 -c 'import sys,urllib.request; addr=sys.argv[1]; req=urllib.request.Request(f"http://{addr}/v1/webhooks/github/restart-project", data=b"{\"event\":\"before-restart\"}", method="POST", headers={"Authorization":"Bearer restart-token","Content-Type":"application/json","X-GitHub-Delivery":"restart-delivery-1"}); resp=urllib.request.urlopen(req); print(resp.status); print(resp.read().decode())' "$ADDR" > .epicsd-restart/webhook-before.txt
+for i in $(seq 1 60); do
+  epics --json run list --limit 10 > .epicsd-restart/runs-before.json
+  python3 -c 'import json,sys; runs=json.load(open(".epicsd-restart/runs-before.json")) or []; hits=[r for r in runs if r.get("routeId")=="webhook:github:restart-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude"]; sys.exit(0 if len(hits) >= 1 else 1)' && break
+  sleep 1
+done
+python3 -c 'import json,sys; runs=json.load(open(".epicsd-restart/runs-before.json")) or []; hits=[r for r in runs if r.get("routeId")=="webhook:github:restart-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude"]; sys.exit(0 if len(hits) >= 1 else 1)'
+
+stop_daemon
+start_daemon
+epics --json daemon status > .epicsd-restart/status-after.json
+epics --json workspace inspect "$WS" > .epicsd-restart/workspace-after.json
+epics --json route inspect webhook:github:restart-project > .epicsd-restart/route-after.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-restart/workspaces-after.json
+cp "$EPICSD_HOME/routes.json" .epicsd-restart/routes-after.json
+ADDR=$(python3 -c 'import json;print(json.load(open(".epicsd-restart/status-after.json"))["webhookHTTPAddr"])')
+python3 -c 'import sys,urllib.request; addr=sys.argv[1]; req=urllib.request.Request(f"http://{addr}/v1/webhooks/github/restart-project", data=b"{\"event\":\"after-restart\"}", method="POST", headers={"Authorization":"Bearer restart-token","Content-Type":"application/json","X-GitHub-Delivery":"restart-delivery-2"}); resp=urllib.request.urlopen(req); print(resp.status); print(resp.read().decode())' "$ADDR" > .epicsd-restart/webhook-after.txt
+for i in $(seq 1 60); do
+  epics --json run list --limit 20 > .epicsd-restart/runs-after.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-restart/epicsd.log
+  python3 -c 'import json,sys; runs=json.load(open(".epicsd-restart/runs-after.json")) or []; hits=[r for r in runs if r.get("routeId")=="webhook:github:restart-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude"]; sys.exit(0 if len(hits) >= 2 else 1)' && break
+  sleep 1
+done
+python3 -c 'import json,sys; runs=json.load(open(".epicsd-restart/runs-after.json")) or []; hits=[r for r in runs if r.get("routeId")=="webhook:github:restart-project" and r.get("outcome")=="succeeded" and r.get("adapter")=="claude"]; summary={"successes": len(hits), "workspaceId": hits[0]["workspaceId"] if hits else "", "routeId": "webhook:github:restart-project"}; open(".epicsd-restart/recovery-summary.json","w").write(json.dumps(summary, indent=2) + "\n"); sys.exit(0 if len(hits) >= 2 else 1)'
+cat .epicsd-restart/status-before.json
+cat .epicsd-restart/status-after.json
+cat .epicsd-restart/workspace-before.json
+cat .epicsd-restart/workspace-after.json
+cat .epicsd-restart/route-before.json
+cat .epicsd-restart/route-after.json
+cat .epicsd-restart/webhook-before.txt
+cat .epicsd-restart/webhook-after.txt
+cat .epicsd-restart/recovery-summary.json
+`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-home-restart",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"displayName": "restart-project"`, `"id": "webhook:github:restart-project"`, `"selectedAdapter": "claude"`, `"successes": 2`, `"routeId": "webhook:github:restart-project"`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.epicsd-restart/status-before.json", MustExist: true, Contains: []string{`"status": "ok"`, `"webhookHTTPAddr": "127.0.0.1:`}},
+				{Path: "project/.epicsd-restart/status-after.json", MustExist: true, Contains: []string{`"status": "ok"`, `"webhookHTTPAddr": "127.0.0.1:`}},
+				{Path: "project/.epicsd-restart/workspaces-before.json", MustExist: true, Contains: []string{"restart-project", "/workspace/project"}},
+				{Path: "project/.epicsd-restart/workspaces-after.json", MustExist: true, Contains: []string{"restart-project", "/workspace/project"}},
+				{Path: "project/.epicsd-restart/routes-before.json", MustExist: true, Contains: []string{"webhook:github:restart-project", "\"selectedAdapter\": \"claude\""}},
+				{Path: "project/.epicsd-restart/routes-after.json", MustExist: true, Contains: []string{"webhook:github:restart-project", "\"selectedAdapter\": \"claude\""}},
+				{Path: "project/.epicsd-restart/runs-after.json", MustExist: true, Contains: []string{`"routeId": "webhook:github:restart-project"`, `"outcome": "succeeded"`}},
+				{Path: "project/.epicsd-restart/recovery-summary.json", MustExist: true, Contains: []string{`"successes": 2`, `"routeId": "webhook:github:restart-project"`}},
+				{Path: "project/.epicsd-restart/epicsd.log", MustExist: true, Contains: []string{"route=webhook:github:restart-project", "adapter=claude"}},
+			},
+		},
+		{
+			Name:         "claude-epicsd-cron-heartbeat-haiku",
+			Description:  "Install the original agent-heartbeat Epic, use live Claude to rewrite the installed copy into a 10-second Rust-haiku test profile, then run it through epicsd cron for 60 seconds and collect the real Claude haikus.",
+			Tags:         []string{"claude", "live", "daemon", "cron"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "/Users/Testsson/Projects/Kindship/epics/agent-heartbeat", To: "fixtures/agent-heartbeat"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-heartbeat",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/agent-heartbeat"},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Agent Heartbeat for claude into .claude/skills/agent-heartbeat"},
+				},
+				{
+					Name:           "validate-installed-heartbeat",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/agent-heartbeat"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Agent Heartbeat is valid."},
+				},
+				{
+					Name:    "claude-update-installed-heartbeat",
+					Program: "claude",
+					Workdir: "project",
+					Args: []string{
+						"-p",
+						`Update only the installed Epic at .claude/skills/agent-heartbeat for a live cron test.
+
+Make these exact changes:
+1. Rewrite .claude/skills/agent-heartbeat/runtime/state.json so it is valid JSON with:
+{
+  "state_version": 1,
+  "status": "active",
+  "name": "Agent Heartbeat",
+  "cadence": "10s",
+  "last_run": null,
+  "next_run": null,
+  "current_plan": "runtime/plans/001-rust-haiku.md",
+  "nextStep": "Output exactly one fresh three-line haiku about coding in Rust, include the word Rust, use no tools, do not modify files, and stop immediately."
+}
+2. Create or replace .claude/skills/agent-heartbeat/runtime/plans/001-rust-haiku.md with markdown that instructs every heartbeat run to output exactly one fresh haiku about coding in Rust, in exactly three lines, containing the word Rust, with no title, bullets, fences, or explanation. It must also say: use no tools, inspect nothing, modify no files, and stop immediately after printing the haiku.
+3. Update .claude/skills/agent-heartbeat/cron.d/heartbeat.yml so the schedule is "*/10 * * * * *" and the run prompt matches the same Rust-haiku instruction.
+
+Do not modify any other files.
+Respond exactly UPDATED`,
+						"--dangerously-skip-permissions",
+						"--output-format",
+						"text",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutEquals:   "UPDATED",
+				},
+				{
+					Name:           "validate-updated-heartbeat",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/agent-heartbeat"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Agent Heartbeat is valid."},
+				},
+				{
+					Name:           "resume-updated-heartbeat",
+					Workdir:        "project",
+					Args:           []string{"resume", "agent-heartbeat"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"runtime/plans/001-rust-haiku.md", "haiku about coding in Rust"},
+				},
+				{
+					Name:    "run-heartbeat-cron",
+					Program: "sh",
+					Workdir: "project",
+					Args: []string{"-lc", `
+mkdir -p "$EPICSD_HOME" .epicsd-heartbeat
+python3 - <<'PY'
+import json
+import os
+home = os.environ["EPICSD_HOME"]
+os.makedirs(home, exist_ok=True)
+config = {
+    "admin_socket_path": os.path.join(home, "epicsd.sock"),
+    "webhook_http_addr": "127.0.0.1:0",
+    "max_body_bytes": 1048576,
+    "global_queue_capacity": 256,
+    "per_workspace_concurrency": 1,
+    "dedup_ttl_seconds": 300,
+    "scheduler_tick_seconds": 1,
+    "allow_insecure_auth_none": False,
+    "shutdown_timeout_seconds": 30,
+}
+with open(os.path.join(home, "config.json"), "w", encoding="utf-8") as fh:
+    fh.write(json.dumps(config, indent=2) + "\n")
+PY
+
+epicsd > "$EPICSD_HOME/epicsd.log" 2>&1 &
+pid=$!
+trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+for i in $(seq 1 50); do
+  [ -S "$EPICSD_HOME/epicsd.sock" ] && break
+  sleep 0.2
+done
+[ -S "$EPICSD_HOME/epicsd.sock" ] || { cat "$EPICSD_HOME/epicsd.log"; exit 1; }
+
+epics --json daemon status > .epicsd-heartbeat/status.json
+WS=$(epics --json workspace register . --name heartbeat-project | tee .epicsd-heartbeat/workspace.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+epics --json route upsert --type cron --workspace "$WS" --epic agent-heartbeat --job rust-haiku --cron "*/10 * * * * *" --preferred-adapter claude --auth none --overlap queue_one > .epicsd-heartbeat/route.json
+cp "$EPICSD_HOME/config.json" .epicsd-heartbeat/config.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-heartbeat/workspaces.json
+cp "$EPICSD_HOME/routes.json" .epicsd-heartbeat/routes.json
+
+sleep 60
+
+ROUTE_ID=$(python3 -c 'import json; print(json.load(open(".epicsd-heartbeat/route.json"))["id"])')
+epics --json route disable "$ROUTE_ID" > .epicsd-heartbeat/route-disabled.json
+
+prev=-1
+stable=0
+for i in $(seq 1 120); do
+  epics --json run list --route "$ROUTE_ID" --limit 50 > .epicsd-heartbeat/runs.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-heartbeat/epicsd.log
+  count=$(python3 -c 'import json; runs=json.load(open(".epicsd-heartbeat/runs.json")) or []; print(sum(1 for run in runs if run.get("outcome") == "succeeded"))')
+  if [ "$count" = "$prev" ]; then
+    stable=$((stable + 1))
+  else
+    stable=0
+    prev="$count"
+  fi
+  if [ "$count" -ge 3 ] && [ "$stable" -ge 5 ]; then
+    break
+  fi
+  sleep 1
+done
+
+python3 - <<'PY'
+import json
+import re
+from pathlib import Path
+
+route = json.load(open(".epicsd-heartbeat/route.json", encoding="utf-8"))
+runs = json.load(open(".epicsd-heartbeat/runs.json", encoding="utf-8")) or []
+log_lines = Path(".epicsd-heartbeat/epicsd.log").read_text(encoding="utf-8").splitlines()
+prefix = f'route={route["id"]} adapter=claude output='
+timestamp_re = re.compile(r"^\d{4}/\d{2}/\d{2} ")
+haikus = []
+for line in log_lines:
+    if prefix in line:
+        haikus.append([line.split(prefix, 1)[1]])
+        continue
+    if haikus and not timestamp_re.match(line):
+        haikus[-1].append(line)
+haiku_text = ["\n".join(part for part in parts if part).strip() for parts in haikus]
+haiku_text = [text for text in haiku_text if text]
+successful = [run for run in runs if run.get("routeId") == route["id"] and run.get("outcome") == "succeeded" and run.get("adapter") == "claude"]
+report = {
+    "routeId": route["id"],
+    "successfulRuns": len(successful),
+    "haikuCount": len(haiku_text),
+    "haikus": haiku_text,
+}
+Path(".epicsd-heartbeat/haikus-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+markdown = ["# Claude Rust Haikus", ""]
+for index, text in enumerate(haiku_text, start=1):
+    markdown.append(f"## Haiku {index}")
+    markdown.append("")
+    markdown.append(text)
+    markdown.append("")
+Path(".epicsd-heartbeat/haikus-report.md").write_text("\n".join(markdown).rstrip() + "\n", encoding="utf-8")
+if len(successful) < 3 or len(haiku_text) < 3:
+    raise SystemExit(1)
+PY
+
+cat .epicsd-heartbeat/status.json
+cat .epicsd-heartbeat/workspace.json
+cat .epicsd-heartbeat/route.json
+cat .epicsd-heartbeat/runs.json
+cat .epicsd-heartbeat/haikus-report.json
+cat .epicsd-heartbeat/haikus-report.md
+`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-heartbeat-home",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"displayName": "heartbeat-project"`, `"id": "cron:`, `"selectedAdapter": "claude"`, `"successfulRuns":`, `"haikuCount":`, "Claude Rust Haikus", "Rust"},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/agent-heartbeat/runtime/state.json", MustExist: true, Contains: []string{`"cadence": "10s"`, `"current_plan": "runtime/plans/001-rust-haiku.md"`, `"nextStep": "Output exactly one fresh three-line haiku about coding in Rust`}},
+				{Path: "project/.claude/skills/agent-heartbeat/runtime/plans/001-rust-haiku.md", MustExist: true, Contains: []string{"Rust", "three lines"}},
+				{Path: "project/.claude/skills/agent-heartbeat/cron.d/heartbeat.yml", MustExist: true, Contains: []string{`schedule: "*/10 * * * * *"`, "Rust"}},
+				{Path: "project/.epicsd-heartbeat/config.json", MustExist: true, Contains: []string{`"scheduler_tick_seconds": 1`}},
+				{Path: "project/.epicsd-heartbeat/route.json", MustExist: true, Contains: []string{`"type": "cron"`, `"selectedAdapter": "claude"`, `"cronExpr": "*/10 * * * * *"`}},
+				{Path: "project/.epicsd-heartbeat/runs.json", MustExist: true, Contains: []string{`"routeId": "cron:`, `"outcome": "succeeded"`}},
+				{Path: "project/.epicsd-heartbeat/haikus-report.json", MustExist: true, Contains: []string{`"haikuCount":`, `Rust`}},
+				{Path: "project/.epicsd-heartbeat/haikus-report.md", MustExist: true, Contains: []string{"# Claude Rust Haikus", "Rust"}},
+				{Path: "project/.epicsd-heartbeat/epicsd.log", MustExist: true, Contains: []string{"route=cron:", "adapter=claude"}},
+			},
+		},
+		{
 			Name:         "init-empty-workspace",
 			Description:  "Initialize an empty workspace into a minimal Epic package.",
 			Tags:         []string{"cli", "core"},

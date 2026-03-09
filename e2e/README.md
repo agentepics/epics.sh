@@ -1,7 +1,7 @@
 # E2E Harness
 
 The `e2e/` subsystem runs Docker-backed end-to-end scenarios against the real
-`epics` CLI binary built from this repo.
+`epics` CLI and `epicsd` binaries built from this repo.
 
 ## Requirements
 
@@ -36,13 +36,19 @@ see exactly what was checked.
 
 Passing runs keep the logs even when workspace snapshots are cleaned up.
 
+The live Claude lane now includes daemon-backed scenarios as well:
+
+- `claude-epicsd-webhook-dispatch`
+- `claude-epicsd-restart-recovery`
+- `claude-epicsd-cron-heartbeat-haiku`
+
 ## Live Chat
 
 `chat` is a manual live-evaluation workflow built on the same Claude Docker
 image used by the live scenarios. It:
 
 - builds the Claude E2E image
-- starts a detached container with `claude` and `epics` installed
+- starts a detached container with `claude`, `epics`, and `epicsd` installed
 - mounts a prepared workspace under `/workspace`
 - installs the `examples/fixtures/resume-epic` fixture into the project
 - runs a scripted multi-turn conversation with Claude via `docker exec`

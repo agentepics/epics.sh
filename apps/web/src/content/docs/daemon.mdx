@@ -1,60 +1,82 @@
 ---
 title: Daemon Architecture
-description: Design rationale for epicsd, an optional runtime control plane for Epics.
+description: Runtime control-plane reference for the shipped epicsd Phase B daemon.
 section: Concepts
 order: 35
 navTitle: Daemon
 ---
 
-The `epicsd` daemon is a planned optional runtime sidecar. It is not required
-for basic Epic usage — the CLI handles install, validate, resume, and doctor
-without it. The daemon becomes valuable when you need runtime features that a
-plain CLI cannot own well by itself.
+`epicsd` now ships as a lean Phase B optional runtime sidecar. It is not
+required for basic Epic usage — the CLI still handles install, validate,
+resume, and doctor without it — but it now owns the first durable runtime slice
+for shared background execution.
 
-## Why a daemon
+## Shipped V1 scope
 
-Each host CLI has different hooks, extension APIs, and service models. A daemon
-reduces that inconsistency by centralizing runtime ownership:
+- one shared daemon per OS user account
+- Unix domain socket admin API at `~/.config/epicsd/epicsd.sock`
+- localhost-only webhook ingress on `127.0.0.1`
+- durable workspace, route, and run records under `~/.config/epicsd/`
+- webhook and cron routes only
+- one compiled-in runtime adapter at launch: `claude`
+- no automatic cross-adapter failover
+- no durable executor persistence
+- no public remote control API
 
-- **Cron execution** — persisted schedules, missed-run policy, overlap control,
-  locks, and structured run history
-- **Hook dispatch** — one engine fires lifecycle hooks regardless of which host
-  adapter triggered the event
-- **Serialized writes** — per-Epic locks, atomic writes, and monotonic event
-  sequencing for state and logs
-- **Background jobs** — supervised job execution with status tracking and log
-  retrieval
-- **Cross-adapter bridging** — host adapters become thin clients that trigger or
-  query `epicsd` rather than embedding runtime logic
+The daemon home layout is:
 
-## Phased rollout
+```text
+config.json
+epicsd.sock
+state.json
+workspaces.json
+routes.json
+runs/
+secrets/
+epicsd.log
+```
 
-| Phase | Scope |
-|---|---|
-| **A — No daemon** | CLI-only: install, validate, resume, doctor, host setup, `epics cron validate` |
-| **B — Optional daemon** | Local sidecar for cron, hooks, background jobs, runtime status |
-| **C — Daemon-backed adapters** | Host adapters delegate runtime concerns to `epicsd` |
+## Runtime model
+
+- route is the primary durable runtime object
+- every webhook or cron event resolves directly to one route
+- one bounded global ingress queue
+- per-route single-flight execution
+- per-workspace concurrency cap
+- webhook dedup is in-memory best effort within the configured TTL
+- cron overlap policies are `single_flight` and `queue_one`
 
 ## Security posture
 
-- Local-only by default — no network listener
-- Remote access is opt-in, transport is pluggable
-- Auth required before any control-plane access
-- Fail-closed when auth or transport is unavailable
+- local admin control uses filesystem permissions on the Unix socket
+- webhook ingress binds only to `127.0.0.1`
+- webhook auth modes are `bearer` and `hmac`
+- `authMode=none` is rejected unless explicitly enabled in daemon config
+- routes fail closed when the workspace is degraded or the selected adapter is
+  unhealthy
 
 ## Operator interface
 
-Once the daemon ships, `epics` gains operational commands:
+The CLI surface now includes:
 
 ```bash
+epics daemon install
+epics daemon uninstall
+epics daemon start
+epics daemon stop
+epics daemon restart
 epics daemon status
 epics daemon logs
-epics daemon install    # register as a user service
-epics daemon repair
+epics daemon doctor
+epics workspace register
+epics workspace list
+epics route upsert
+epics route list
+epics run list
 ```
 
-Combined with the existing `epics doctor`, this makes the runtime observable and
-debuggable rather than implicit.
+`epics daemon install` writes a user service for `launchd` on macOS or
+`systemd --user` on Linux.
 
 ## What it does not replace
 

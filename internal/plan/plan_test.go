@@ -138,6 +138,23 @@ func TestCreatePlanIgnoresNonMarkdownFilesForNumbering(t *testing.T) {
 	}
 }
 
+func TestCreatePlanUsesRuntimeLayoutForSpec051(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "SKILL.md"), "# Skill\n")
+	writeFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.1\nid: runtime-epic\n---\n\n# Runtime Epic\n")
+
+	entry, err := Create(dir, "Runtime Plan")
+	if err != nil {
+		t.Fatalf("create plan: %v", err)
+	}
+	if entry.Path != "runtime/plans/001-runtime-plan.md" {
+		t.Fatalf("unexpected runtime plan path: %#v", entry)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "runtime", "plans", "001-runtime-plan.md")); err != nil {
+		t.Fatalf("expected runtime plan file: %v", err)
+	}
+}
+
 func writePlanFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/agentepics/epics.sh/internal/epic"
 )
 
 type Entry struct {
@@ -24,7 +26,8 @@ func Recent(root string, limit int) ([]Entry, error) {
 		return []Entry{}, nil
 	}
 
-	logDir := filepath.Join(root, "log")
+	specVersion := detectSpecVersion(root)
+	logDir := epic.RuntimePath(root, specVersion, "log")
 	entries, err := os.ReadDir(logDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -89,7 +92,7 @@ func CreateAt(root, title string, now time.Time) (string, error) {
 		name = timestamp.Format("2006-01-02") + "-" + slugify(cleanTitle) + ".md"
 	}
 
-	path := filepath.Join(root, "log", name)
+	path := epic.RuntimePath(root, detectSpecVersion(root), filepath.ToSlash(filepath.Join("log", name)))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
@@ -123,4 +126,12 @@ func slugify(value string) string {
 	}
 
 	return strings.Trim(b.String(), "-")
+}
+
+func detectSpecVersion(root string) string {
+	pkg, err := epic.Load(root)
+	if err != nil {
+		return ""
+	}
+	return pkg.SpecVersion
 }

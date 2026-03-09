@@ -89,3 +89,57 @@ and preserves any existing configuration.
 epics host setup <host>
 epics host setup claude
 ```
+
+## epics daemon
+
+Manage the shared per-user `epicsd` service and inspect runtime health.
+
+```bash
+epics daemon install
+epics daemon uninstall
+epics daemon start
+epics daemon stop
+epics daemon restart
+epics daemon status
+epics daemon logs
+epics daemon doctor
+```
+
+`install` writes a user service for `launchd` on macOS or `systemd --user` on
+Linux. `status`, `logs`, and `doctor` talk to the Unix-socket admin API.
+
+## epics workspace
+
+Register and inspect daemon-managed workspaces.
+
+```bash
+epics workspace register [path] --name repo-a
+epics workspace list
+epics workspace inspect <workspace-id>
+```
+
+## epics route
+
+Create and manage daemon routes. V1 supports `webhook` and `cron` routes only.
+
+```bash
+epics route upsert --type webhook --workspace <workspace-id> --epic <slug> --provider github --endpoint repo-a --preferred-adapter claude --auth bearer --secret <token>
+epics route upsert --type cron --workspace <workspace-id> --epic <slug> --job nightly --cron "0 2 * * *" --preferred-adapter claude --auth none --overlap queue_one
+epics route list
+epics route inspect <route-id>
+epics route enable <route-id>
+epics route disable <route-id>
+```
+
+Use `--id <route-id>` when replacing an existing route whose identity fields
+change, for example when renaming a cron job or webhook endpoint key.
+
+## epics run
+
+Inspect the daemon run ledger.
+
+```bash
+epics run list
+epics run list --route <route-id> --limit 20
+epics run inspect <run-id>
+```

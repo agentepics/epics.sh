@@ -1,4 +1,5 @@
 ---
+spec_version: 0.5.1
 id: failing-install-hook-epic
 ---
 

@@ -93,6 +93,14 @@ func (a App) Run(args []string) int {
 		return a.runLog(flags, rest[1:])
 	case "cron":
 		return a.runCron(flags, rest[1:])
+	case "daemon":
+		return a.runDaemon(flags, rest[1:])
+	case "workspace":
+		return a.runDaemonWorkspace(flags, rest[1:])
+	case "route":
+		return a.runDaemonRoute(flags, rest[1:])
+	case "run":
+		return a.runDaemonRun(flags, rest[1:])
 	default:
 		return a.fail(flags, fmt.Errorf("unknown command %q", rest[0]))
 	}
@@ -115,7 +123,11 @@ Describe the reusable workflow this Epic provides.
 - Keep the package portable across supported hosts.
 - Use the ` + "`epics`" + ` CLI as the canonical control surface.
 `,
-		"EPIC.md": `# EPIC.md
+		"EPIC.md": `---
+spec_version: 0.5.1
+---
+
+# EPIC.md
 
 ## Objective
 
@@ -123,7 +135,7 @@ Describe the durable objective this Epic helps complete.
 
 ## Success criteria
 
-- State, plans, and logs stay aligned with the work.
+- Runtime state, plans, and logs stay aligned with the work.
 - Resume context can be reconstructed across sessions.
 `,
 	}
@@ -738,7 +750,7 @@ func (a App) resolvePackageReference(arg string) (string, workspace.InstallRecor
 
 func (a App) printUsage() {
 	a.print("Usage: epics [--json] [--quiet] [--yes] <command>")
-	a.print(fmt.Sprintf("Commands: init, install, validate, info, status, resume, doctor, host <setup|doctor> <%s>, state, plan, log, cron", strings.Join(hosts.Supported(), "|")))
+	a.print(fmt.Sprintf("Commands: init, install, validate, info, status, resume, doctor, host <setup|doctor> <%s>, state, plan, log, cron, daemon, workspace, route, run", strings.Join(hosts.Supported(), "|")))
 }
 
 func parseGlobalFlags(args []string) (globalFlags, []string, error) {

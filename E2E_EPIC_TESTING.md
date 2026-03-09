@@ -8,6 +8,7 @@ The Claude E2E lane verifies that:
 
 - Claude Code itself can run headlessly inside Docker
 - `epics install` can install a real Epic into a project-local Claude workspace
+- `epicsd` can run inside the live Claude lane and dispatch a real route
 - the EPIC-spec `install` trigger is executed during install
 - Claude can discover and read the installed Epic from the project
 
@@ -57,6 +58,7 @@ The Claude runner image lives in `e2e/docker/claude-runner.Dockerfile`.
 It contains:
 
 - the locally built `epics` binary
+- the locally built `epicsd` binary
 - `git` for remote GitHub Epic fetches
 - `python3` for simple script hooks and the backend fixture
 - `node` / `npm`
@@ -119,6 +121,37 @@ The hook-validation Epic fixtures live under:
 - Runs Claude against the workspace
 - Asserts Claude reports the installed Epic path/title/slug from real files
 
+`claude-epicsd-webhook-dispatch`
+- Installs the local `resume-epic` fixture into the fixture project
+- Starts `epicsd` inside the live Claude container with a container-local
+  `EPICSD_HOME` under `/tmp` and copies daemon state back into the workspace
+  for assertions
+- Registers the project workspace, upserts a bearer-protected webhook route,
+  and posts a localhost webhook delivery into the daemon
+- Polls `epics run list` until the daemon records a successful `claude`
+  dispatch for `webhook:github:live-project`
+- Verifies copied-back daemon files under `project/.epicsd-artifacts/`
+
+`claude-epicsd-restart-recovery`
+- Installs the local `resume-epic` fixture and starts `epicsd`
+- Registers a live webhook route, delivers one successful webhook, then stops
+  and restarts the daemon in the same live container session
+- Verifies `workspaces.json` and `routes.json` persist across restart
+- Delivers a second webhook after restart and waits for a second successful
+  `claude`-backed run
+- Writes a compact recovery summary proving two successful runs against the same
+  persisted route identity
+
+`claude-epicsd-cron-heartbeat-haiku`
+- Copies the original `agent-heartbeat` Epic from the sibling Epic source tree
+  into the live workspace and installs it unchanged into Claude
+- Validates the installed Epic, then uses the real Claude CLI to rewrite only
+  the installed copy into a 10-second Rust-haiku test profile
+- Starts `epicsd` with a 1-second scheduler tick, registers a cron route with a
+  six-field `*/10 * * * * *` expression, and lets the route run for 60 seconds
+- Disables the route, waits for queued work to drain, and extracts the actual
+  Claude haikus from the daemon log into copied-back JSON and Markdown reports
+
 ## Install-hook behavior
 
 The install-hook implementation follows the local Agent Epics spec in the
@@ -162,6 +195,8 @@ Current implementation choices:
   exact text or compact JSON, to keep assertions stable
 - The harness should execute explicit programs (`epics`, `claude`) instead of
   depending on a fixed Docker entrypoint
+- The live Claude lane now also needs the `epicsd` binary in the container so
+  runtime and daemon-backed flows can be exercised end to end
 - Run IDs need sub-second uniqueness; second-level timestamps can collide across
   concurrent local runs and break Docker image reuse
 
