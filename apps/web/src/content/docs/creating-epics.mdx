@@ -36,12 +36,17 @@ my-epic/
 │   ├── plans/      # Step-by-step execution plans
 │   └── log/        # Session and event logs
 ├── cron.d/         # Scheduled tasks
-├── hooks/          # Lifecycle hook scripts
+├── hooks/          # Lifecycle hook handlers
 └── policy.yml      # Constraints and guardrails
 ```
 
 Every file has a role in the Epic lifecycle. The scaffolder fills in sensible
 defaults so you can start iterating immediately.
+
+This is the curated operational profile, not the minimum valid Epic. The core
+spec only requires `SKILL.md` plus `EPIC.md`. If you want the smallest
+spec-valid package, use `epics init`. If you want a fuller authored package
+with runtime state, hooks, cron, and policy scaffolding, use `create-epic`.
 
 ## v0.5.2 migration note
 
@@ -71,26 +76,37 @@ spec defines three tiers:
   The agent updates these freely during execution.
 - **Configuration** (human-only) — `policy.yml`, `cron.d/`, `hooks/`. Only a
   human or the scaffolder should modify these.
-- **Immutable** (skill author) — `SKILL.md` and `EPIC.md` are set at publish
-  time. They define the contract and should not change at runtime.
+- **Immutable** (skill author) — `scripts/`, `references/`, and `assets/` stay
+  fixed during normal operation.
+- **Curated context** (rare updates) — `EPIC.md` carries the durable operating
+  definition and should only change deliberately.
+- **Skill/config surface** (setup-time updates) — `SKILL.md` is part of the
+  authored package contract, but it is not an immutable runtime artifact.
 
 **Cron schedules** — Epics can declare recurring tasks in `cron.d/`. These let
 the agent perform periodic work like syncing state, running checks, or
-publishing reports without manual triggers. Each cron file uses a simple YAML
-schema:
+publishing reports without manual triggers. The authored `0.5.2` profile uses
+structured YAML like this:
 
 ```yaml
 name: daily-sync
 schedule: "0 9 * * *"
 timezone: America/New_York
 enabled: true
-run: "epics resume --check-only"
-context: runtime/state.json
-output: runtime/log/cron/
+run:
+  type: prompt
+  prompt: |
+    Resume the epic, review runtime/state.json, and update the active plan.
+context:
+  - runtime/state.json
+output:
+  log: true
+  update_state: true
+  notify: false
 ```
 
-Fields: `name`, `schedule` (cron expression), `timezone`, `enabled`, `run`
-(shell command), `context` (file to pass), and `output` (log directory).
+Fields: `name`, `schedule` (cron expression), `timezone`, `enabled`, structured
+`run`, optional `context`, and structured `output`.
 
 **Hooks** — Lifecycle hooks in `hooks/` fire at defined trigger points. The
 canonical triggers are:
@@ -103,8 +119,23 @@ canonical triggers are:
 - `became-blocked` — when the agent cannot proceed
 - `cron-fired` — after a cron schedule executes
 
-Hooks are shell scripts. They receive the trigger name and relevant context as
-arguments.
+The current authored profile uses markdown prompt hooks with YAML frontmatter:
+
+```markdown
+---
+enabled: true
+type: prompt
+timeout: 300
+---
+
+Read runtime/state.json, inspect the current plan, and write any required
+follow-up to runtime/log/.
+```
+
+The broader spec also allows script, HTTP, and agent handlers. Current
+`epics.sh` builds are strongest on install-time handling and daemon-backed cron
+routes; package-native runtime support is still catching up to the full authored
+surface.
 
 **Policy constraints** — `policy.yml` sets guardrails for the agent. It has two
 main sections:

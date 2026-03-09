@@ -1,10 +1,10 @@
 # epics.sh
 
-`epics.sh` is the umbrella repo for two related products:
+`epics.sh` is the umbrella repo for three related products:
 
 - the `epics.sh` website
 - the `epics` Go CLI
-- the `epicsd` user daemon
+- the optional `epicsd` user daemon
 
 The goal is to make Agent Epics easy to publish, discover, install, and run
 across supported AI coding agent CLIs such as Claude Code, Gemini CLI, and
@@ -87,7 +87,7 @@ Current supported hosts:
 
 ## Current Status
 
-This repo now ships a working CLI and a lean Phase B daemon slice.
+This repo now ships a working CLI and a lean optional Phase B daemon slice.
 
 Implemented so far:
 

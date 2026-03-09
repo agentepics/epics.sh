@@ -4,6 +4,7 @@
 
 - the `epics.sh` website
 - the `epics` CLI
+- the optional `epicsd` daemon
 
 The Epic spec itself lives in:
 
