@@ -19,9 +19,9 @@ func TestParseFrontmatterReturnsPartialMapWhenUnclosed(t *testing.T) {
 
 func TestLoadUsesRuntimePathsForSpec052(t *testing.T) {
 	dir := t.TempDir()
-	writeEpicFile(t, filepath.Join(dir, "SKILL.md"), "---\nname: runtime-epic\ndescription: Runtime fixture.\n---\n\n# Runtime Epic\n\nUse this epic when runtime state matters. `EPIC.md` is authoritative.\n\nSee ## Agent Epics below if this is your first encounter with the Agent Epics system.\n\n"+CanonicalSkillFooter())
+	writeEpicFile(t, filepath.Join(dir, "SKILL.md"), "---\nname: runtime-epic\ndescription: Runtime fixture.\n---\n\n# Runtime Epic\n\nUse this epic when runtime state matters. `EPIC.md` is authoritative.\n\nSee the **Agent Epics** section below if this is your first encounter with the Agent Epics system.\n\n"+CanonicalSkillFooter())
 	writeEpicFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n")
-	writeEpicFile(t, filepath.Join(dir, "runtime", "state", "core.json"), "{\n  \"currentPlan\": \"runtime/plans/001-current.md\"\n}\n")
+	writeEpicFile(t, filepath.Join(dir, "runtime", "state", "core.json"), "{\n  \"state_version\": 1,\n  \"status\": \"active\",\n  \"current_plan\": \"001-current.md\"\n}\n")
 	writeEpicFile(t, filepath.Join(dir, "runtime", "plans", "001-current.md"), "# Current\n")
 	writeEpicFile(t, filepath.Join(dir, "runtime", "log", "2026-03-08.md"), "# Log\n")
 
@@ -45,7 +45,7 @@ func TestLoadUsesRuntimePathsForSpec052(t *testing.T) {
 
 func TestValidateRejectsLegacyLiveStateForSpec052(t *testing.T) {
 	dir := t.TempDir()
-	writeEpicFile(t, filepath.Join(dir, "SKILL.md"), "---\nname: runtime-epic\ndescription: Runtime fixture.\n---\n\n# Runtime Epic\n\nUse this epic when runtime state matters. `EPIC.md` is authoritative.\n\nSee ## Agent Epics below if this is your first encounter with the Agent Epics system.\n\n"+CanonicalSkillFooter())
+	writeEpicFile(t, filepath.Join(dir, "SKILL.md"), "---\nname: runtime-epic\ndescription: Runtime fixture.\n---\n\n# Runtime Epic\n\nUse this epic when runtime state matters. `EPIC.md` is authoritative.\n\nSee the **Agent Epics** section below if this is your first encounter with the Agent Epics system.\n\n"+CanonicalSkillFooter())
 	writeEpicFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n")
 	writeEpicFile(t, filepath.Join(dir, "plans", "001-current.md"), "# Legacy Plan\n")
 
@@ -102,6 +102,39 @@ func TestUpgradeSkillFooterReplacesStaleFooter(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNonCanonicalFooterBodyForSpec052(t *testing.T) {
+	dir := t.TempDir()
+	writeEpicFile(t, filepath.Join(dir, "SKILL.md"), "---\nname: runtime-epic\ndescription: Runtime fixture.\n---\n\n# Runtime Epic\n\nUse this epic when runtime state matters. `EPIC.md` is authoritative.\n\nSee the **Agent Epics** section below if this is your first encounter with the Agent Epics system.\n\n## Agent Epics\n<!-- epics-canonical-footer: https://raw.githubusercontent.com/agentepics/agentepics/refs/heads/main/footer.md -->\n\nOutdated footer body.\n")
+	writeEpicFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n")
+
+	_, diagnostics, err := Validate(dir)
+	if err != nil {
+		t.Fatalf("validate package: %v", err)
+	}
+
+	var codes []string
+	for _, diagnostic := range diagnostics {
+		codes = append(codes, diagnostic.Code)
+	}
+	assertContainsCode(t, codes, "stale_agent_epics_footer_body")
+}
+
+func TestCanonicalSkillFooterMatchesAgentepicsFooterWhenAvailable(t *testing.T) {
+	footerPath := findAdjacentAgentepicsFooter(t)
+	if footerPath == "" {
+		t.Skip("agentepics/footer.md not available in a sibling checkout")
+	}
+
+	raw, err := os.ReadFile(footerPath)
+	if err != nil {
+		t.Fatalf("read agentepics footer: %v", err)
+	}
+
+	if got, want := strings.TrimSpace(normalizeNewlines(CanonicalSkillFooter())), strings.TrimSpace(normalizeNewlines(string(raw))); got != want {
+		t.Fatalf("canonical footer drifted from %s\n--- got ---\n%s\n--- want ---\n%s", footerPath, got, want)
+	}
+}
+
 func assertContainsCode(t *testing.T, codes []string, want string) {
 	t.Helper()
 	for _, code := range codes {
@@ -119,5 +152,28 @@ func writeEpicFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func findAdjacentAgentepicsFooter(t *testing.T) string {
+	t.Helper()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+
+	dir := wd
+	for {
+		candidate := filepath.Join(dir, "agentepics", "footer.md")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
 	}
 }

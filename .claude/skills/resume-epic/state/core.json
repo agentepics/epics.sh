@@ -1,4 +1,6 @@
 {
-  "currentPlan": "plans/001-current.md",
+  "state_version": 1,
+  "status": "active",
+  "current_plan": "001-current.md",
   "nextStep": "Verify the generated summary output"
 }
