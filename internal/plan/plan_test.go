@@ -138,10 +138,10 @@ func TestCreatePlanIgnoresNonMarkdownFilesForNumbering(t *testing.T) {
 	}
 }
 
-func TestCreatePlanUsesRuntimeLayoutForSpec051(t *testing.T) {
+func TestCreatePlanUsesRuntimeLayoutForSpec052(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "SKILL.md"), "# Skill\n")
-	writeFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.1\nid: runtime-epic\n---\n\n# Runtime Epic\n")
+	writeFile(t, filepath.Join(dir, "EPIC.md"), "---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n")
 
 	entry, err := Create(dir, "Runtime Plan")
 	if err != nil {

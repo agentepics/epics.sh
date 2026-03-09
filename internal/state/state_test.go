@@ -210,7 +210,7 @@ func TestSetConcurrent(t *testing.T) {
 	}
 }
 
-func TestSetUsesRuntimeStateForSpec051(t *testing.T) {
+func TestSetUsesRuntimeStateForSpec052(t *testing.T) {
 	dir := t.TempDir()
 	writeRuntimeEpicRoot(t, dir)
 
@@ -263,7 +263,7 @@ func writeRuntimeEpicRoot(t *testing.T, dir string) {
 	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("# Skill\n"), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "EPIC.md"), []byte("---\nspec_version: 0.5.1\nid: runtime-epic\n---\n\n# Runtime Epic\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "EPIC.md"), []byte("---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n"), 0o644); err != nil {
 		t.Fatalf("write epic: %v", err)
 	}
 }

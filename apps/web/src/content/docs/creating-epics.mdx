@@ -29,11 +29,12 @@ The skill produces a standard Epic package layout:
 
 ```
 my-epic/
-├── SKILL.md        # Agent-readable skill definition
+├── SKILL.md        # Dual-purpose skill entrypoint plus Agent Epics footer
 ├── EPIC.md         # Human-readable overview and intent
-├── state.json      # Persistent workflow state
-├── plans/          # Step-by-step execution plans
-├── log/            # Session and event logs
+├── runtime/
+│   ├── state.json  # Persistent workflow state
+│   ├── plans/      # Step-by-step execution plans
+│   └── log/        # Session and event logs
 ├── cron.d/         # Scheduled tasks
 ├── hooks/          # Lifecycle hook scripts
 └── policy.yml      # Constraints and guardrails
@@ -41,6 +42,14 @@ my-epic/
 
 Every file has a role in the Epic lifecycle. The scaffolder fills in sensible
 defaults so you can start iterating immediately.
+
+## v0.5.2 migration note
+
+New epics should emit a dual-purpose `SKILL.md` from day one: a short skill
+surface at the top, and the canonical `## Agent Epics` footer at the bottom.
+Migrating older epics usually means editing `SKILL.md`, not moving the runtime
+tree again. For the full upgrade steps, see the public
+[`0.5.2` migration guide](https://github.com/agentepics/agentepics/blob/main/docs/epic-migration-0-5-2.mdx).
 
 ## Archetypes
 
@@ -58,7 +67,7 @@ The skill asks you to pick an archetype that shapes the generated package:
 **Mutability tiers** — Not every file in an Epic has the same write rules. The
 spec defines three tiers:
 
-- **Working state** (agent-writable) — `state.json`, `log/`, plan progress.
+- **Working state** (agent-writable) — `runtime/state.json`, `runtime/log/`, plan progress.
   The agent updates these freely during execution.
 - **Configuration** (human-only) — `policy.yml`, `cron.d/`, `hooks/`. Only a
   human or the scaffolder should modify these.
@@ -76,8 +85,8 @@ schedule: "0 9 * * *"
 timezone: America/New_York
 enabled: true
 run: "epics resume --check-only"
-context: state.json
-output: log/cron/
+context: runtime/state.json
+output: runtime/log/cron/
 ```
 
 Fields: `name`, `schedule` (cron expression), `timezone`, `enabled`, `run`

@@ -55,12 +55,30 @@ The common adapter strategy should be:
   - MCP wiring
 - let any future `epicsd` own runtime semantics like cron, hook dispatch,
   locking, and run ledgers
+- treat any future `epicsd` as one shared local daemon per OS user account,
+  not a repo-local daemon per project
 
 That yields a clean split:
 
 - host adapter = transport and UX
 - `epics` CLI = control surface
+- `epicsd` = shared local runtime authority across many workspaces
 - Epic files = portable state and workflow definition
 
 Codex research remains useful, but Codex should not be presented as a supported
 host unless it can meet the same autonomy contract as the supported set.
+
+## v0.5.2 migration checklist
+
+Cross-host adapter work for `0.5.2` should follow these rules:
+
+- discovery still starts from `SKILL.md`
+- the standardized `## Agent Epics` footer is portable metadata, not a
+  replacement for the operational body
+- adapters may consume that footer when generating host-native setup, but they
+  should preserve it exactly
+- `EPIC.md`, `runtime/`, `hooks/`, `cron.d/`, and `policy.yml` remain the
+  canonical epic operating surface
+- host-private session IDs, locks, and runtime bookkeeping must never be stored
+  in the footer
+- legacy footer-less epics must keep working during migration

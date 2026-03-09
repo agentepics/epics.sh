@@ -28,19 +28,41 @@ That means:
 
 - `SKILL.md`
 - `EPIC.md`
-- `plans/`
-- `state.json` or `state/`
-- `log/`
-- `ROADMAP.md`
-- `DECISIONS.md`
+- `runtime/`
 - `hooks/`
 - `cron.d/`
 - `policy.yml`
+- `skills/`
+- `scripts/`
+- `references/`
+- `assets/`
 
 must continue to define the portable baseline.
 
 Anything in this document should be treated as an optional runtime layer that a
 more capable executor may implement.
+
+The `0.5.2` dual-purpose `SKILL.md` footer is part of that portable baseline,
+not an extension described here.
+
+## Shared-Daemon Assumption
+
+When this document talks about daemon-owned runtime concerns, it assumes:
+
+- one local `epicsd` per OS user account on a machine
+- many workspaces and installed Epics may register with that daemon
+- runtime metadata lives in daemon-owned stores keyed by workspace, Epic,
+  route, adapter, and run identity
+
+It does not assume:
+
+- one daemon per project
+- one daemon per Epic install
+- a network-shared control plane across many machines
+
+This matters because the extensions below only make sense if one local daemon
+can coordinate many workspaces for one user while keeping that runtime metadata
+outside the portable Epic package baseline.
 
 ## Why These Extensions Only Make Sense After Phase C
 

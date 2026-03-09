@@ -71,6 +71,8 @@ func (a App) Run(args []string) int {
 	switch rest[0] {
 	case "init":
 		return a.runInit(flags, rest[1:])
+	case "upgrade-skill-footer":
+		return a.runUpgradeSkillFooter(flags, rest[1:])
 	case "install":
 		return a.runInstall(flags, rest[1:])
 	case "validate":
@@ -111,23 +113,36 @@ func (a App) runInit(flags globalFlags, args []string) int {
 		return a.fail(flags, errors.New("init does not accept additional arguments"))
 	}
 
-	files := map[string]string{
-		"SKILL.md": `# SKILL.md
-
-## Purpose
-
-Describe the reusable workflow this Epic provides.
-
-## Rules
-
-- Keep the package portable across supported hosts.
-- Use the ` + "`epics`" + ` CLI as the canonical control surface.
-`,
-		"EPIC.md": `---
-spec_version: 0.5.1
+	slug := sanitizeSlug(filepath.Base(a.CWD))
+	if slug == "" {
+		slug = "new-epic"
+	}
+	title := titleFromSlug(slug)
+	skillContent := epic.RefreshSkillFooter(fmt.Sprintf(`---
+name: %s
+description: Describe what this epic does, when to activate it, and that durable operating context lives in EPIC.md.
 ---
 
-# EPIC.md
+# %s
+
+Use this epic when you need a durable, resumable workflow for this directory. `+"`EPIC.md`"+` is the authoritative source for lifecycle, state model, guardrails, and resume behavior.
+
+See ## Agent Epics below if this is your first encounter with the Agent Epics system.
+
+## Operating notes
+
+- Start by reading `+"`EPIC.md`"+` before doing substantive work.
+- Keep volatile plans, state, logs, and outputs under `+"`runtime/`"+` instead of rewriting this file.
+`, slug, title))
+
+	files := map[string]string{
+		"SKILL.md": skillContent,
+		"EPIC.md": `---
+spec_version: 0.5.2
+id: ` + slug + `
+---
+
+# ` + title + `
 
 ## Objective
 
@@ -164,6 +179,38 @@ Describe the durable objective this Epic helps complete.
 	for _, item := range created {
 		a.print("  - " + item)
 	}
+	return 0
+}
+
+func (a App) runUpgradeSkillFooter(flags globalFlags, args []string) int {
+	arg, err := requireAtMostOneArg(args)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	target, err := a.resolvePackageTarget(arg)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	skillPath, changed, err := epic.UpgradeSkillFooter(target)
+	if err != nil {
+		return a.fail(flags, err)
+	}
+
+	payload := map[string]any{
+		"path":    skillPath,
+		"changed": changed,
+		"marker":  epic.CanonicalSkillFooterMarker,
+	}
+	if flags.JSON {
+		return a.emitJSON(payload)
+	}
+	if changed {
+		a.print("Refreshed Agent Epics footer in " + skillPath)
+		return 0
+	}
+	a.print("SKILL.md already has the current Agent Epics footer.")
 	return 0
 }
 
@@ -750,7 +797,7 @@ func (a App) resolvePackageReference(arg string) (string, workspace.InstallRecor
 
 func (a App) printUsage() {
 	a.print("Usage: epics [--json] [--quiet] [--yes] <command>")
-	a.print(fmt.Sprintf("Commands: init, install, validate, info, status, resume, doctor, host <setup|doctor> <%s>, state, plan, log, cron, daemon, workspace, route, run", strings.Join(hosts.Supported(), "|")))
+	a.print(fmt.Sprintf("Commands: init, upgrade-skill-footer, install, validate, info, status, resume, doctor, host <setup|doctor> <%s>, state, plan, log, cron, daemon, workspace, route, run", strings.Join(hosts.Supported(), "|")))
 }
 
 func parseGlobalFlags(args []string) (globalFlags, []string, error) {
@@ -816,6 +863,30 @@ func parseInstallArgs(args []string) (installArgs, error) {
 		return installArgs{}, errors.New("install flag --host requires a non-empty value")
 	}
 	return result, nil
+}
+
+func sanitizeSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer(" ", "-", "_", "-", ".", "-")
+	value = replacer.Replace(value)
+	for strings.Contains(value, "--") {
+		value = strings.ReplaceAll(value, "--", "-")
+	}
+	return strings.Trim(value, "-")
+}
+
+func titleFromSlug(slug string) string {
+	parts := strings.Fields(strings.NewReplacer("-", " ", "_", " ").Replace(slug))
+	for i := range parts {
+		if len(parts[i]) == 0 {
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
+	}
+	if len(parts) == 0 {
+		return "New Epic"
+	}
+	return strings.Join(parts, " ")
 }
 
 func requireAtMostOneArg(args []string) (string, error) {

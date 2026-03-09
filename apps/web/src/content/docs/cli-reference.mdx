@@ -11,10 +11,21 @@ All commands support the global flags `--json`, `--quiet`, and `--yes`.
 ## epics init
 
 Scaffold a new Epic package in the current directory. Creates `SKILL.md` and
-`EPIC.md` with starter templates. Existing files are preserved.
+`EPIC.md` with starter templates. New `SKILL.md` files use the `0.5.2`
+dual-purpose shape, including the canonical `## Agent Epics` footer. Existing
+files are preserved.
 
 ```bash
 epics init
+```
+
+## epics upgrade-skill-footer
+
+Refresh the canonical `## Agent Epics` footer in an authored `SKILL.md`.
+
+```bash
+epics upgrade-skill-footer
+epics upgrade-skill-footer <path>
 ```
 
 ## epics install
@@ -33,8 +44,9 @@ supported host. In non-interactive environments it fails instead of guessing.
 
 ## epics validate
 
-Validate package metadata and supporting files. Returns diagnostics with level
-and path for each issue found.
+Validate package metadata and supporting files. For `spec_version: 0.5.2`,
+this includes the dual-purpose `SKILL.md` surface and canonical footer marker.
+Returns diagnostics with level and path for each issue found.
 
 ```bash
 epics validate

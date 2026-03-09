@@ -140,12 +140,12 @@ func TestCreateLogDateFormat(t *testing.T) {
 	}
 }
 
-func TestCreateLogUsesRuntimeLayoutForSpec051(t *testing.T) {
+func TestCreateLogUsesRuntimeLayoutForSpec052(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte("# Skill\n"), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "EPIC.md"), []byte("---\nspec_version: 0.5.1\nid: runtime-epic\n---\n\n# Runtime Epic\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "EPIC.md"), []byte("---\nspec_version: 0.5.2\nid: runtime-epic\n---\n\n# Runtime Epic\n"), 0o644); err != nil {
 		t.Fatalf("write epic: %v", err)
 	}
 

@@ -9,14 +9,17 @@ navTitle: Spec Extensions
 The core Epic model is file-portable. These files define the baseline:
 
 ```
-SKILL.md    EPIC.md    state.json    plans/
-log/        hooks/     cron.d/       policy.yml
-ROADMAP.md  DECISIONS.md
+SKILL.md    EPIC.md    runtime/      hooks/
+cron.d/     policy.yml skills/       scripts/
+references/ assets/
 ```
 
 Everything in this page describes **optional runtime extensions** — features
 that only become meaningful when a capable executor like `epicsd` is running.
 They are never required for a valid Epic package.
+
+The `0.5.2` dual-purpose `SKILL.md` footer is part of the core packaging model,
+not an optional runtime extension.
 
 ## Candidate extensions
 

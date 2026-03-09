@@ -22,6 +22,14 @@ The adapter model keeps a clean separation:
 Host-specific files like `CLAUDE.md`, `GEMINI.md`, or `AGENTS.md` are used only
 for discovery and guidance injection, not for defining Epic behavior.
 
+## v0.5.2 SKILL footer handling
+
+For `spec_version: 0.5.2`, adapters should treat the standardized `## Agent
+Epics` footer in `SKILL.md` as portable input. Adapters may project it into
+host-native files or wrappers, but they should preserve it exactly, stay
+backward-compatible with footer-less `0.5.1` epics, and keep `EPIC.md` as the
+authoritative lifecycle source.
+
 ## Supported hosts
 
 | Host | Strongest surfaces | Main constraint |

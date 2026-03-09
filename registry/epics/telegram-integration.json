@@ -4,7 +4,12 @@
   "summary": "Connect the coding agent to Telegram so it can reach the user with questions, updates, and status reports.",
   "description": "A communications Epic for making autonomous work reachable. It sets up Telegram connectivity, keeps delivery settings and chat targets durable, and gives the agent a reliable path to ask questions or send reports back to the user.",
   "category": "Communication",
-  "tags": ["telegram", "messaging", "questions", "reports"],
+  "tags": [
+    "telegram",
+    "messaging",
+    "questions",
+    "reports"
+  ],
   "featured": false,
   "source": {
     "repo": "github.com/agentepics/epics",
@@ -12,7 +17,7 @@
   },
   "version": "0.1.0",
   "digest": "3670c76f0366c5848abbd3b083d4deb7673f60d5",
-  "updatedAt": "2026-03-08",
+  "updatedAt": "2026-03-09",
   "validationStatus": "reviewed",
   "maintainers": [
     {
@@ -20,8 +25,8 @@
       "url": "https://github.com/agentepics"
     }
   ],
-  "skillMd": "# SKILL.md\n\n## Purpose\n\nGive the agent a durable Telegram channel for asking questions and sending reports. This is a capability Epic — once installed, the agent has Telegram the way it has bash.\n\n## Operating loop\n\n1. Check `state.json` for bot connection status and active chat targets.\n2. If not configured, set up Telegram bot connectivity and record targets.\n3. When another Epic or the agent needs to communicate, decide: question or report.\n4. Send the message and record the outcome in `log/`.\n5. On failure, log the failure and escalate per `policy.yml`.\n\n## Rules\n\n- Only ask questions when they materially block progress.\n- Follow the user's reporting preferences stored in `state.json`.\n- Log every delivery failure — never silently drop a message.",
-  "epicMd": "# EPIC.md\n\n## Objective\n\nMake autonomous work reachable by giving the agent a reliable Telegram path for questions, reports, and status updates.\n\n## Phases\n\n1. **Setup** — configure bot token, verify connectivity, record chat targets.\n2. **Active** — route messages based on context: questions when blocked, reports on schedule.\n3. **Maintenance** — update targets and preferences as the user directs.\n\n## Success criteria\n\n- Bot connection is verified and recorded in `state.json`.\n- Messages reach the correct chat target without silent failures.\n- Delivery failures are logged and escalated.\n\n## State to preserve\n\n- `state.json` — bot status, active chat targets, delivery preferences, question-vs-report policy\n- `log/` — message delivery outcomes and failures\n\n## Guardrails\n\n- Do not send messages to the wrong chat target.\n- Do not silently drop delivery failures.\n\n## Resume\n\nRead `state.json` for bot connection status and chat targets. If the bot is configured, the capability is ready — no further setup needed. Check `log/` for recent delivery failures that may need retry.",
+  "skillMd": "---\nname: telegram-integration\ndescription: Give the agent a durable Telegram channel for questions and reports. Activate when an epic or workspace needs long-lived Telegram delivery and reply handling.\n---\n\n# Telegram Integration\n\nUse this epic when Telegram should behave like a durable communication capability instead of a one-off script. `EPIC.md` is the authoritative source for lifecycle, state model, guardrails, and resume behavior.\n\nSee ## Agent Epics below if this is your first encounter with the Agent Epics system.\n\n## Operating notes\n\n- Record bot connectivity and delivery outcomes in runtime state and logs.\n- Escalate delivery failures according to `policy.yml`; never drop messages silently.\n\n## Agent Epics\n<!-- epics-canonical-footer: https://github.com/agentepics/agentepics/blob/v0.5.2/footer.md -->\n\nThis directory is an Agent Epic. `SKILL.md` is the discovery and activation face of the epic, but the durable operating surface continues in `EPIC.md` plus the files under `runtime/`.\n\nResume in this order:\n\n1. Read `EPIC.md`.\n2. Read `runtime/state/core.json` if present, otherwise read `runtime/state.json`.\n3. Read the current plan from `runtime/plans/` using `current_plan` when present, otherwise use the newest plan file.\n4. Read the 3-5 most recent entries in `runtime/log/`.\n5. Open `runtime/ROADMAP.md` and `runtime/DECISIONS.md` only when strategic context is needed.\n\nIf your host already supports Agent Epics, continue with the normal activation flow. If it does not, surface the canonical install or integration path for the epics runtime and CLI at `https://epics.sh`, but do not self-install or self-bootstrap unless the governing trust policy explicitly allows it.\n\nIf you encounter this `SKILL.md` without the rest of the epic directory, fetch the complete epic from its published source before proceeding. A standalone `SKILL.md` is not enough to resume or operate an epic safely.",
+  "epicMd": "---\nspec_version: 0.5.2\nid: telegram-integration\ntags: [telegram, messaging, questions, reports]\ntimezone: UTC\n---\n\n# Telegram Integration\n\n## Objective\n\nMake autonomous work reachable by giving the agent a reliable Telegram path for questions, reports, and status updates.\n\n## Phases\n\n1. **Setup** — configure bot token, verify connectivity, record chat targets.\n2. **Active** — route messages based on context: questions when blocked, reports on schedule.\n3. **Maintenance** — update targets and preferences as the user directs.\n\n## Success criteria\n\n- Bot connection is verified and recorded in `runtime/state.json`.\n- Messages reach the correct chat target without silent failures.\n- Delivery failures are logged and escalated.\n\n## State to preserve\n\n- `runtime/state.json` — bot status, active chat targets, delivery preferences, question-vs-report policy\n- `runtime/log/` — message delivery outcomes and failures\n\n## Guardrails\n\n- Do not send messages to the wrong chat target.\n- Do not silently drop delivery failures.\n\n## Resume\n\nRead `runtime/state.json` for bot connection status and chat targets. If the bot is configured, the capability is ready — no further setup needed. Check `runtime/log/` for recent delivery failures that may need retry.",
   "features": [
     "Telegram bot and chat routing setup",
     "Durable rules for when to ask questions versus report status",

@@ -12,6 +12,7 @@ import (
 
 	"github.com/agentepics/epics.sh/internal/daemon"
 	daemonstore "github.com/agentepics/epics.sh/internal/daemon/store"
+	"github.com/agentepics/epics.sh/internal/epic"
 	"github.com/agentepics/epics.sh/internal/fsutil"
 	"github.com/agentepics/epics.sh/internal/testutil"
 )
@@ -28,6 +29,49 @@ func TestInitCreatesPackage(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Fatalf("expected %s to exist: %v", name, err)
 		}
+	}
+
+	skillRaw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	skill := string(skillRaw)
+	if !strings.Contains(skill, "name: "+filepath.Base(dir)) {
+		t.Fatalf("expected generated skill name, got %q", skill)
+	}
+	if !strings.Contains(skill, epic.CanonicalSkillFooterMarker) {
+		t.Fatalf("expected canonical footer marker, got %q", skill)
+	}
+
+	epicRaw, err := os.ReadFile(filepath.Join(dir, "EPIC.md"))
+	if err != nil {
+		t.Fatalf("read epic: %v", err)
+	}
+	if !strings.Contains(string(epicRaw), "spec_version: 0.5.2") {
+		t.Fatalf("expected spec_version 0.5.2, got %q", string(epicRaw))
+	}
+}
+
+func TestUpgradeSkillFooterCommand(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: test-epic\ndescription: Test fixture.\n---\n\n# Test Epic\n\nUse this epic when you need test coverage. `EPIC.md` is authoritative.\n\n## Agent Epics\n<!-- epics-canonical-footer: https://github.com/agentepics/agentepics/blob/v0.5.1/footer.md -->\n\nOld footer.\n"), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	app := NewApp(dir, strings.NewReader(""), &stdout, &stderr)
+
+	if code := app.Run([]string{"upgrade-skill-footer"}); code != 0 {
+		t.Fatalf("upgrade command failed: code=%d stderr=%s", code, stderr.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read updated skill: %v", err)
+	}
+	if !strings.Contains(string(raw), epic.CanonicalSkillFooterMarker) {
+		t.Fatalf("expected canonical footer marker, got %q", string(raw))
 	}
 }
 

@@ -114,7 +114,7 @@ func Validate(root string) (Package, []Diagnostic, error) {
 			Path:    "SKILL.md",
 		})
 	} else {
-		diagnostics = append(diagnostics, validateMarkdown(pkg.Root, pkg.SkillPath, "SKILL.md", "skill")...)
+		diagnostics = append(diagnostics, validateSkillMarkdown(pkg.Root, pkg.SkillPath, "SKILL.md", pkg.SpecVersion)...)
 	}
 
 	if pkg.EpicPath == "" {
@@ -281,7 +281,12 @@ func LatestFiles(paths []string, limit int) []string {
 }
 
 func UsesRuntimeLayout(specVersion string) bool {
-	return strings.TrimSpace(specVersion) == "0.5.1"
+	switch strings.TrimSpace(specVersion) {
+	case "0.5.1", "0.5.2":
+		return true
+	default:
+		return false
+	}
 }
 
 func RelativeLiveRoot(specVersion string) string {
@@ -363,6 +368,102 @@ func validateMarkdown(root, path, relPath, prefix string) []Diagnostic {
 	}
 
 	return nil
+}
+
+func validateSkillMarkdown(root, path, relPath, specVersion string) []Diagnostic {
+	diagnostics := validateMarkdown(root, path, relPath, "skill")
+	if !RequiresDualPurposeSkill(specVersion) {
+		return diagnostics
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "read_error_skill",
+			Path:    relPath,
+			Message: err.Error(),
+		})
+	}
+
+	content := normalizeNewlines(string(raw))
+	frontmatter := parseFrontmatter(content)
+	if len(frontmatter) == 0 {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "missing_skill_frontmatter",
+			Path:    relPath,
+			Message: relPath + " must start with SKILL.md frontmatter for spec_version 0.5.2",
+		})
+	} else {
+		if strings.TrimSpace(frontmatter["name"]) == "" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Level:   "error",
+				Code:    "missing_skill_name",
+				Path:    relPath,
+				Message: relPath + " must declare frontmatter field name for spec_version 0.5.2",
+			})
+		}
+		if strings.TrimSpace(frontmatter["description"]) == "" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Level:   "error",
+				Code:    "missing_skill_description",
+				Path:    relPath,
+				Message: relPath + " must declare frontmatter field description for spec_version 0.5.2",
+			})
+		}
+	}
+
+	if !strings.Contains(content, CanonicalSkillFooterHeading) {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "missing_agent_epics_heading",
+			Path:    relPath,
+			Message: relPath + " must include the standard `## Agent Epics` footer heading for spec_version 0.5.2",
+		})
+	}
+
+	switch {
+	case strings.Contains(content, CanonicalSkillFooterMarker):
+		// Current footer marker is present.
+	case strings.Contains(content, "<!-- epics-canonical-footer:"):
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "stale_agent_epics_footer",
+			Path:    relPath,
+			Message: relPath + " has a stale Agent Epics footer marker; run `epics upgrade-skill-footer` to refresh it",
+		})
+	default:
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "missing_agent_epics_footer",
+			Path:    relPath,
+			Message: relPath + " must include the canonical Agent Epics footer marker for spec_version 0.5.2",
+		})
+	}
+
+	preface := content
+	if headingIndex := footerHeadingIndex(preface); headingIndex >= 0 {
+		preface = preface[:headingIndex]
+	}
+	if !strings.Contains(preface, "EPIC.md") {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "warning",
+			Code:    "missing_epic_reference_skill",
+			Path:    relPath,
+			Message: relPath + " should mention that durable operating context lives in EPIC.md",
+		})
+	}
+	if !strings.Contains(preface, "See ## Agent Epics below") {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "warning",
+			Code:    "missing_agent_epics_pointer",
+			Path:    relPath,
+			Message: relPath + " should include a pointer near the top that directs first-time readers to `## Agent Epics`",
+		})
+	}
+
+	return diagnostics
 }
 
 func validateJSONFile(root, path, relPath string) []Diagnostic {
