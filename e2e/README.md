@@ -41,6 +41,9 @@ The live Claude lane now includes daemon-backed scenarios as well:
 - `claude-epicsd-webhook-dispatch`
 - `claude-epicsd-restart-recovery`
 - `claude-epicsd-cron-heartbeat-haiku`
+- `claude-epicsd-cron-state-progression`
+- `claude-epicsd-cron-overlap-skip`
+- `claude-epicsd-webhook-auth-rejection`
 
 ## Live Chat
 

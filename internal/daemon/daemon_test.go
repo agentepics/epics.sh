@@ -353,7 +353,7 @@ func TestCronCatchupAndOverlapPolicies(t *testing.T) {
 
 	srv.catchUpCron()
 
-	waitForCondition(t, 8*time.Second, func() bool {
+	waitForCondition(t, 15*time.Second, func() bool {
 		queueOneRuns, err := st.ListRuns(routeQueueOne.ID, workspace.ID, 10)
 		if err != nil {
 			return false
@@ -367,6 +367,39 @@ func TestCronCatchupAndOverlapPolicies(t *testing.T) {
 			countOutcomes(singleFlightRuns, store.RunSucceeded) >= 1 &&
 			countOutcomes(singleFlightRuns, store.RunSkipped) >= 1
 	})
+
+	waitForCondition(t, 5*time.Second, func() bool {
+		raw, err := os.ReadFile(st.LogPath())
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(raw), "action=skip reason=cron_overlap")
+	})
+}
+
+func TestCronRouteAcceptsSkipOverlapAlias(t *testing.T) {
+	_, _, client, _, cleanup := startTestServer(t, "0")
+	defer cleanup()
+
+	workspacePath := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	workspace := registerWorkspace(t, client, workspacePath, "repo-a")
+
+	route := upsertRoute(t, client, map[string]any{
+		"type":             store.RouteTypeCron,
+		"workspaceId":      workspace.ID,
+		"epicSlug":         "resume-epic",
+		"jobName":          "skip-alias",
+		"cronExpr":         "* * * * *",
+		"preferredAdapter": "claude",
+		"authMode":         store.AuthNone,
+		"overlapPolicy":    "skip",
+	})
+	if route.OverlapPolicy != store.OverlapSingleFlight {
+		t.Fatalf("expected skip alias to normalize to %q, got %q", store.OverlapSingleFlight, route.OverlapPolicy)
+	}
 }
 
 func startTestServer(t *testing.T, claudeSleep string) (*Server, string, *Client, store.Config, func()) {

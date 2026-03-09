@@ -27,6 +27,30 @@ then the daemon starts to justify itself.
 
 That is the main lesson from OpenClaw Gateway.
 
+## Tenancy Model
+
+The default `epicsd` design should be:
+
+- one local daemon per OS user account on a machine
+- shared across that user's Epic-enabled workspaces and projects
+- installed and supervised as a user service, not a project-local service
+
+That means:
+
+- workspaces register runtime state with the same daemon
+- per-workspace, per-Epic, and per-route isolation happens inside daemon-owned
+  records, locks, and ledgers
+- the local OS user account is the primary trust boundary in early versions
+
+It should not default to:
+
+- one daemon per project or repository
+- a daemon bundled into each Epic install
+- a shared network daemon across many machines
+
+Separate daemons should remain an explicit isolation or debugging choice, not
+the baseline product model.
+
 ## What OpenClaw Gateway Does
 
 Based on the current OpenClaw docs, the Gateway acts as a single long-running
@@ -669,7 +693,9 @@ Add `epicsd` as an optional runtime sidecar for users who want:
 - runtime status
 - stronger multi-agent coordination
 
-This keeps the base CLI usable while allowing a stronger runtime profile.
+Phase B assumes a shared user-local daemon that can coordinate many
+workspaces for the same user. This keeps the base CLI usable while allowing a
+stronger runtime profile.
 
 ### Phase C: daemon-backed host adapters
 
@@ -680,12 +706,15 @@ Host adapters should then prefer:
 - ask `epicsd` to run hooks or jobs
 
 Instead of embedding deep runtime semantics inside each host integration.
+That Phase C model still assumes one shared user-local daemon rather than
+project-owned daemon instances.
 
 ## Recommended epicsd Scope
 
 If `epicsd` is built, the smallest scope that justifies it is:
 
 - local-only daemon
+- one daemon per OS user account on a machine
 - ingress router with stable route bindings
 - cross-adapter selection layer
 - per-epic scheduler for `cron.d/`
@@ -704,6 +733,7 @@ That is enough to be useful without turning into a full OpenClaw-like platform.
 Avoid these initially:
 
 - remote network access
+- one-daemon-per-project as the default deployment model
 - browser control plane
 - user-facing multi-tenant auth
 - distributed execution across machines

@@ -713,6 +713,14 @@ func (s *Server) enqueueCron(route store.RouteRecord, workspace store.WorkspaceR
 	}
 	ok, skipped := s.enqueueCronWithPolicy(queued)
 	if skipped {
+		if s.logger != nil {
+			s.logger.Printf(
+				"route=%s action=skip reason=cron_overlap overlap=%s dedup=%s",
+				route.ID,
+				normalizeOverlapPolicy(route.OverlapPolicy),
+				event.DedupKey,
+			)
+		}
 		return s.store.AppendRun(store.RunRecord{
 			ID:            runID,
 			RouteID:       route.ID,
@@ -772,6 +780,17 @@ func (s *Server) enqueueCronWithPolicy(event queuedEvent) (accepted bool, skippe
 	s.pending = append(s.pending, &event)
 	s.signalWork()
 	return true, false
+}
+
+func normalizeOverlapPolicy(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "", "single_flight", "skip":
+		return store.OverlapSingleFlight
+	case "queue_one":
+		return store.OverlapQueueOne
+	default:
+		return ""
+	}
 }
 
 func (s *Server) enqueue(event queuedEvent) bool {
@@ -1033,6 +1052,13 @@ func (s *Server) upsertRoute(payload routeUpsertPayload) (store.RouteRecord, err
 	}
 	if strings.TrimSpace(payload.EpicSlug) == "" {
 		return store.RouteRecord{}, &APIError{Code: "invalid_route", Message: "epicSlug is required"}
+	}
+	if payload.Type == store.RouteTypeCron {
+		originalOverlap := payload.OverlapPolicy
+		payload.OverlapPolicy = normalizeOverlapPolicy(payload.OverlapPolicy)
+		if payload.OverlapPolicy == "" {
+			return store.RouteRecord{}, &APIError{Code: "invalid_route", Message: fmt.Sprintf("unsupported overlapPolicy %q", originalOverlap)}
+		}
 	}
 
 	var routeID string
@@ -1476,7 +1502,17 @@ func (a *claudeRuntimeAdapter) Dispatch(ctx context.Context, route store.RouteRe
 	}
 
 	prompt := buildClaudePrompt(route, event, string(resumeOutput))
-	claudeCmd := exec.CommandContext(ctx, a.claudeBinary, "-p", prompt)
+	// Daemon dispatch is unattended, so Claude must run in non-interactive mode
+	// with explicit text output and no permission prompts.
+	claudeCmd := exec.CommandContext(
+		ctx,
+		a.claudeBinary,
+		"-p",
+		prompt,
+		"--dangerously-skip-permissions",
+		"--output-format",
+		"text",
+	)
 	claudeCmd.Dir = workspace.Path
 	output, err := claudeCmd.CombinedOutput()
 	if a.logger != nil {

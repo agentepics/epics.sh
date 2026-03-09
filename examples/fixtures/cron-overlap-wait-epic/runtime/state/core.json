@@ -1,0 +1,7 @@
+{
+  "state_version": 1,
+  "status": "active",
+  "name": "Cron Overlap Wait Epic",
+  "current_plan": "runtime/plans/001-slow-run.md",
+  "nextStep": "Use the shell tool and run exactly: python3 -c \"import time; time.sleep(20)\". Wait for that command to finish. After it finishes, respond with exactly DONE. Do not modify any files or runtime state."
+}

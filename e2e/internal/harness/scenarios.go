@@ -594,6 +594,599 @@ cat .epicsd-heartbeat/haikus-report.md
 			},
 		},
 		{
+			Name:         "claude-epicsd-cron-state-progression",
+			Description:  "Install a local three-step Epic, drive it with live Claude over cron heartbeats, and prove runtime state advances across runs instead of repeating step 1.",
+			Tags:         []string{"claude", "live", "daemon", "cron", "stateful"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/cron-state-progression-epic", To: "fixtures/cron-state-progression-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-stateful-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/cron-state-progression-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Cron State Progression Epic for claude into .claude/skills/cron-state-progression-epic"},
+				},
+				{
+					Name:           "validate-installed-stateful-epic",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/cron-state-progression-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Cron State Progression Epic is valid."},
+				},
+				{
+					Name:    "run-stateful-cron",
+					Program: "sh",
+					Workdir: "project",
+					Args: []string{"-lc", `
+mkdir -p "$EPICSD_HOME" .epicsd-stateful
+python3 - <<'PY'
+import json
+import os
+
+home = os.environ["EPICSD_HOME"]
+os.makedirs(home, exist_ok=True)
+config = {
+    "admin_socket_path": os.path.join(home, "epicsd.sock"),
+    "webhook_http_addr": "127.0.0.1:0",
+    "max_body_bytes": 1048576,
+    "global_queue_capacity": 256,
+    "per_workspace_concurrency": 1,
+    "dedup_ttl_seconds": 300,
+    "scheduler_tick_seconds": 1,
+    "allow_insecure_auth_none": False,
+    "shutdown_timeout_seconds": 30,
+}
+with open(os.path.join(home, "config.json"), "w", encoding="utf-8") as fh:
+    fh.write(json.dumps(config, indent=2) + "\n")
+PY
+
+epicsd > "$EPICSD_HOME/epicsd.log" 2>&1 &
+pid=$!
+trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+for i in $(seq 1 50); do
+  [ -S "$EPICSD_HOME/epicsd.sock" ] && break
+  sleep 0.2
+done
+[ -S "$EPICSD_HOME/epicsd.sock" ] || { cat "$EPICSD_HOME/epicsd.log"; exit 1; }
+
+epics --json daemon status > .epicsd-stateful/status.json
+WS=$(epics --json workspace register . --name stateful-project | tee .epicsd-stateful/workspace.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+epics --json route upsert --type cron --workspace "$WS" --epic cron-state-progression-epic --job stateful-loop --cron "*/15 * * * * *" --preferred-adapter claude --auth none --overlap queue_one > .epicsd-stateful/route.json
+cp "$EPICSD_HOME/config.json" .epicsd-stateful/config.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-stateful/workspaces.json
+cp "$EPICSD_HOME/routes.json" .epicsd-stateful/routes.json
+
+for i in $(seq 1 18); do
+  epics --json run list --limit 30 > .epicsd-stateful/runs.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-stateful/epicsd.log
+  python3 - <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state_path = Path(".claude/skills/cron-state-progression-epic/runtime/state/core.json")
+epic_root = Path(".claude/skills/cron-state-progression-epic")
+if not state_path.exists():
+    sys.exit(1)
+state = json.loads(state_path.read_text(encoding="utf-8"))
+checks = [
+    (epic_root / "output/step1.txt").exists(),
+    (epic_root / "output/step2.txt").exists(),
+    (epic_root / "output/summary.txt").exists(),
+    state.get("phase") == "done",
+    state.get("status") == "complete",
+]
+sys.exit(0 if all(checks) else 1)
+PY
+  if [ $? -eq 0 ]; then
+    break
+  fi
+  sleep 5
+done
+
+ROUTE_ID=$(python3 -c 'import json; print(json.load(open(".epicsd-stateful/route.json"))["id"])')
+epics --json route disable "$ROUTE_ID" > .epicsd-stateful/route-disabled.json
+
+for i in $(seq 1 60); do
+  epics --json run list --route "$ROUTE_ID" --limit 30 > .epicsd-stateful/runs.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-stateful/epicsd.log
+  python3 - <<'PY'
+import json
+import sys
+
+runs = json.load(open(".epicsd-stateful/runs.json", encoding="utf-8")) or []
+state = json.load(open(".claude/skills/cron-state-progression-epic/runtime/state/core.json", encoding="utf-8"))
+running = [run for run in runs if run.get("outcome") == "running"]
+done = state.get("phase") == "done" and state.get("status") == "complete"
+sys.exit(0 if done and not running else 1)
+PY
+  if [ $? -eq 0 ]; then
+    break
+  fi
+  sleep 1
+done
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+state_path = Path(".claude/skills/cron-state-progression-epic/runtime/state/core.json")
+epic_root = Path(".claude/skills/cron-state-progression-epic")
+state = json.loads(state_path.read_text(encoding="utf-8"))
+step1_text = (epic_root / "output/step1.txt").read_text(encoding="utf-8").strip()
+step2_text = (epic_root / "output/step2.txt").read_text(encoding="utf-8").strip()
+summary_text = (epic_root / "output/summary.txt").read_text(encoding="utf-8").strip()
+runs = json.load(open(".epicsd-stateful/runs.json", encoding="utf-8")) or []
+route = json.load(open(".epicsd-stateful/route.json", encoding="utf-8"))
+successful = [run for run in runs if run.get("routeId") == route["id"] and run.get("outcome") == "succeeded"]
+report = {
+    "routeId": route["id"],
+    "successfulRuns": len(successful),
+    "phase": state.get("phase"),
+    "status": state.get("status"),
+    "completedSteps": state.get("completed_steps"),
+    "nextStep": state.get("nextStep", ""),
+    "step1": step1_text,
+    "step2": step2_text,
+    "summary": summary_text,
+}
+Path(".epicsd-stateful/state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+Path(".epicsd-stateful/progression-summary.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+if step1_text != "STEP 1 COMPLETE":
+    raise SystemExit(1)
+if step2_text != "STEP 2 saw: STEP 1 COMPLETE":
+    raise SystemExit(1)
+if "STEP 1 COMPLETE" not in summary_text or "STEP 2 saw: STEP 1 COMPLETE" not in summary_text:
+    raise SystemExit(1)
+if state.get("phase") != "done" or state.get("status") != "complete":
+    raise SystemExit(1)
+if state.get("completed_steps") != ["step1", "step2", "step3"]:
+    raise SystemExit(1)
+if state.get("nextStep") != "All steps are complete. Do nothing else.":
+    raise SystemExit(1)
+if len(successful) < 3:
+    raise SystemExit(1)
+PY
+
+cat .epicsd-stateful/status.json
+cat .epicsd-stateful/workspace.json
+cat .epicsd-stateful/route.json
+cat .epicsd-stateful/runs.json
+cat .epicsd-stateful/state.json
+cat .epicsd-stateful/progression-summary.json
+`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-stateful-home",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"displayName": "stateful-project"`, `"id": "cron:`, `"selectedAdapter": "claude"`, `"phase": "done"`, `"successfulRuns":`, `STEP 2 saw: STEP 1 COMPLETE`, `SUMMARY uses STEP 1 COMPLETE and STEP 2 saw: STEP 1 COMPLETE`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/cron-state-progression-epic/output/step1.txt", MustExist: true, Contains: []string{"STEP 1 COMPLETE"}},
+				{Path: "project/.claude/skills/cron-state-progression-epic/output/step2.txt", MustExist: true, Contains: []string{"STEP 2 saw: STEP 1 COMPLETE"}},
+				{Path: "project/.claude/skills/cron-state-progression-epic/output/summary.txt", MustExist: true, Contains: []string{"STEP 1 COMPLETE", "STEP 2 saw: STEP 1 COMPLETE"}},
+				{Path: "project/.claude/skills/cron-state-progression-epic/runtime/state/core.json", MustExist: true, Contains: []string{`"phase": "done"`, `"status": "complete"`, `"nextStep": "All steps are complete. Do nothing else."`}},
+				{Path: "project/.epicsd-stateful/config.json", MustExist: true, Contains: []string{`"scheduler_tick_seconds": 1`}},
+				{Path: "project/.epicsd-stateful/route.json", MustExist: true, Contains: []string{`"type": "cron"`, `"selectedAdapter": "claude"`, `"cronExpr": "*/15 * * * * *"`}},
+				{Path: "project/.epicsd-stateful/runs.json", MustExist: true, Contains: []string{`"routeId": "cron:`, `"outcome": "succeeded"`}},
+				{Path: "project/.epicsd-stateful/state.json", MustExist: true, Contains: []string{`"phase": "done"`, `"completed_steps": [`}},
+				{Path: "project/.epicsd-stateful/progression-summary.json", MustExist: true, Contains: []string{`"successfulRuns":`, `"phase": "done"`, `"step2": "STEP 2 saw: STEP 1 COMPLETE"`}},
+				{Path: "project/.epicsd-stateful/epicsd.log", MustExist: true, Contains: []string{"route=cron:", "adapter=claude"}},
+			},
+		},
+		{
+			Name:         "claude-epicsd-cron-overlap-skip",
+			Description:  "Install a slow Epic, schedule it every 5 seconds, and prove skip-style overlap handling prevents concurrent Claude runs while surfacing clear skip evidence.",
+			Tags:         []string{"claude", "live", "daemon", "cron", "overlap"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/cron-overlap-wait-epic", To: "fixtures/cron-overlap-wait-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-overlap-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/cron-overlap-wait-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Cron Overlap Wait Epic for claude into .claude/skills/cron-overlap-wait-epic"},
+				},
+				{
+					Name:           "validate-installed-overlap-epic",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/cron-overlap-wait-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Cron Overlap Wait Epic is valid."},
+				},
+				{
+					Name:    "run-overlap-cron",
+					Program: "sh",
+					Workdir: "project",
+					Args: []string{"-lc", `
+mkdir -p "$EPICSD_HOME" .epicsd-overlap
+python3 - <<'PY'
+import json
+import os
+
+home = os.environ["EPICSD_HOME"]
+os.makedirs(home, exist_ok=True)
+config = {
+    "admin_socket_path": os.path.join(home, "epicsd.sock"),
+    "webhook_http_addr": "127.0.0.1:0",
+    "max_body_bytes": 1048576,
+    "global_queue_capacity": 256,
+    "per_workspace_concurrency": 1,
+    "dedup_ttl_seconds": 300,
+    "scheduler_tick_seconds": 1,
+    "allow_insecure_auth_none": False,
+    "shutdown_timeout_seconds": 30,
+}
+with open(os.path.join(home, "config.json"), "w", encoding="utf-8") as fh:
+    fh.write(json.dumps(config, indent=2) + "\n")
+PY
+
+epicsd > "$EPICSD_HOME/epicsd.log" 2>&1 &
+pid=$!
+trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+for i in $(seq 1 50); do
+  [ -S "$EPICSD_HOME/epicsd.sock" ] && break
+  sleep 0.2
+done
+[ -S "$EPICSD_HOME/epicsd.sock" ] || { cat "$EPICSD_HOME/epicsd.log"; exit 1; }
+
+epics --json daemon status > .epicsd-overlap/status.json
+WS=$(epics --json workspace register . --name overlap-project | tee .epicsd-overlap/workspace.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+epics --json route upsert --type cron --workspace "$WS" --epic cron-overlap-wait-epic --job slow-overlap --cron "*/5 * * * * *" --preferred-adapter claude --auth none --overlap skip > .epicsd-overlap/route.json
+cp "$EPICSD_HOME/config.json" .epicsd-overlap/config.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-overlap/workspaces.json
+cp "$EPICSD_HOME/routes.json" .epicsd-overlap/routes.json
+
+sleep 45
+
+ROUTE_ID=$(python3 -c 'import json; print(json.load(open(".epicsd-overlap/route.json"))["id"])')
+epics --json route disable "$ROUTE_ID" > .epicsd-overlap/route-disabled.json
+
+for i in $(seq 1 90); do
+  epics --json run list --route "$ROUTE_ID" --limit 50 > .epicsd-overlap/runs.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-overlap/epicsd.log
+  python3 - <<'PY'
+import json
+import sys
+
+runs = json.load(open(".epicsd-overlap/runs.json", encoding="utf-8")) or []
+running = [run for run in runs if run.get("outcome") == "running"]
+sys.exit(0 if not running else 1)
+PY
+  if [ $? -eq 0 ]; then
+    break
+  fi
+  sleep 1
+done
+
+python3 - <<'PY'
+import json
+from datetime import datetime
+from pathlib import Path
+
+def parse_time(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+route = json.load(open(".epicsd-overlap/route.json", encoding="utf-8"))
+runs = json.load(open(".epicsd-overlap/runs.json", encoding="utf-8")) or []
+log_text = Path(".epicsd-overlap/epicsd.log").read_text(encoding="utf-8")
+started = [run for run in runs if run.get("startedAt")]
+successful = [run for run in runs if run.get("outcome") == "succeeded"]
+skipped = [run for run in runs if run.get("outcome") == "skipped" and run.get("failureReason") == "cron_overlap"]
+intervals = []
+for run in started:
+    started_at = parse_time(run.get("startedAt"))
+    finished_at = parse_time(run.get("finishedAt"))
+    if started_at is None or finished_at is None:
+        raise SystemExit(1)
+    intervals.append((started_at, finished_at, run["id"]))
+intervals.sort(key=lambda item: item[0])
+for previous, current in zip(intervals, intervals[1:]):
+    if current[0] < previous[1]:
+        raise SystemExit(1)
+summary = {
+    "routeId": route["id"],
+    "overlapPolicy": route.get("overlapPolicy"),
+    "startedRuns": len(started),
+    "successfulRuns": len(successful),
+    "skippedRuns": len(skipped),
+    "noOverlaps": True,
+}
+Path(".epicsd-overlap/overlap-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+if route.get("overlapPolicy") != "single_flight":
+    raise SystemExit(1)
+if len(started) >= 5:
+    raise SystemExit(1)
+if len(skipped) < 3:
+    raise SystemExit(1)
+if "action=skip reason=cron_overlap" not in log_text:
+    raise SystemExit(1)
+PY
+
+cat .epicsd-overlap/status.json
+cat .epicsd-overlap/workspace.json
+cat .epicsd-overlap/route.json
+cat .epicsd-overlap/runs.json
+cat .epicsd-overlap/overlap-summary.json
+`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-overlap-home",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"displayName": "overlap-project"`, `"id": "cron:`, `"overlapPolicy": "single_flight"`, `"startedRuns":`, `"skippedRuns":`, `"noOverlaps": true`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.epicsd-overlap/config.json", MustExist: true, Contains: []string{`"scheduler_tick_seconds": 1`}},
+				{Path: "project/.epicsd-overlap/route.json", MustExist: true, Contains: []string{`"type": "cron"`, `"selectedAdapter": "claude"`, `"overlapPolicy": "single_flight"`, `"cronExpr": "*/5 * * * * *"`}},
+				{Path: "project/.epicsd-overlap/runs.json", MustExist: true, Contains: []string{`"routeId": "cron:`, `"outcome": "succeeded"`, `"outcome": "skipped"`, `"failureReason": "cron_overlap"`}},
+				{Path: "project/.epicsd-overlap/overlap-summary.json", MustExist: true, Contains: []string{`"overlapPolicy": "single_flight"`, `"skippedRuns":`, `"noOverlaps": true`}},
+				{Path: "project/.epicsd-overlap/epicsd.log", MustExist: true, Contains: []string{"route=cron:", "adapter=claude", "action=skip reason=cron_overlap"}},
+			},
+		},
+		{
+			Name:         "claude-epicsd-webhook-auth-rejection",
+			Description:  "Install a local Epic behind bearer auth, reject missing and wrong tokens, then prove only the correctly authenticated webhook produces an accepted Claude dispatch.",
+			Tags:         []string{"claude", "live", "daemon", "webhook", "auth", "negative"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/webhook-auth-epic", To: "fixtures/webhook-auth-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-auth-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/webhook-auth-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Webhook Auth Epic for claude into .claude/skills/webhook-auth-epic"},
+				},
+				{
+					Name:           "validate-installed-auth-epic",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/webhook-auth-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Webhook Auth Epic is valid."},
+				},
+				{
+					Name:    "run-webhook-auth",
+					Program: "sh",
+					Workdir: "project",
+					Args: []string{"-lc", `
+mkdir -p "$EPICSD_HOME" .epicsd-webhook-auth
+python3 - <<'PY'
+import json
+import os
+
+home = os.environ["EPICSD_HOME"]
+os.makedirs(home, exist_ok=True)
+config = {
+    "admin_socket_path": os.path.join(home, "epicsd.sock"),
+    "webhook_http_addr": "127.0.0.1:0",
+    "max_body_bytes": 1048576,
+    "global_queue_capacity": 256,
+    "per_workspace_concurrency": 1,
+    "dedup_ttl_seconds": 300,
+    "scheduler_tick_seconds": 1,
+    "allow_insecure_auth_none": False,
+    "shutdown_timeout_seconds": 30,
+}
+with open(os.path.join(home, "config.json"), "w", encoding="utf-8") as fh:
+    fh.write(json.dumps(config, indent=2) + "\n")
+PY
+
+epicsd > "$EPICSD_HOME/epicsd.log" 2>&1 &
+pid=$!
+trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+for i in $(seq 1 50); do
+  [ -S "$EPICSD_HOME/epicsd.sock" ] && break
+  sleep 0.2
+done
+[ -S "$EPICSD_HOME/epicsd.sock" ] || { cat "$EPICSD_HOME/epicsd.log"; exit 1; }
+
+epics --json daemon status > .epicsd-webhook-auth/status.json
+WS=$(epics --json workspace register . --name webhook-auth-project | tee .epicsd-webhook-auth/workspace.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+epics --json route upsert --type webhook --workspace "$WS" --epic webhook-auth-epic --provider github --endpoint auth-project --preferred-adapter claude --auth bearer --secret correct-token > .epicsd-webhook-auth/route.json
+cp "$EPICSD_HOME/config.json" .epicsd-webhook-auth/config.json
+cp "$EPICSD_HOME/workspaces.json" .epicsd-webhook-auth/workspaces.json
+cp "$EPICSD_HOME/routes.json" .epicsd-webhook-auth/routes.json
+ADDR=$(python3 -c 'import json; print(json.load(open(".epicsd-webhook-auth/status.json"))["webhookHTTPAddr"])')
+
+python3 - <<'PY' "$ADDR" no-auth none .epicsd-webhook-auth/no-auth.txt
+import json
+import sys
+import urllib.error
+import urllib.request
+
+addr, delivery, token, output_path = sys.argv[1:5]
+headers = {
+    "Content-Type": "application/json",
+    "X-GitHub-Delivery": delivery,
+}
+if token != "none":
+    headers["Authorization"] = "Bearer " + token
+req = urllib.request.Request(
+    "http://" + addr + "/v1/webhooks/github/auth-project",
+    data=b'{"event":"auth-test"}',
+    method="POST",
+    headers=headers,
+)
+try:
+    resp = urllib.request.urlopen(req)
+    status = resp.status
+    body = resp.read().decode()
+except urllib.error.HTTPError as err:
+    status = err.code
+    body = err.read().decode()
+with open(output_path, "w", encoding="utf-8") as fh:
+    fh.write(str(status) + "\n")
+    fh.write(body + "\n")
+print(status)
+PY
+
+python3 - <<'PY' "$ADDR" wrong-auth wrong-token .epicsd-webhook-auth/wrong-auth.txt
+import json
+import sys
+import urllib.error
+import urllib.request
+
+addr, delivery, token, output_path = sys.argv[1:5]
+headers = {
+    "Content-Type": "application/json",
+    "X-GitHub-Delivery": delivery,
+    "Authorization": "Bearer " + token,
+}
+req = urllib.request.Request(
+    "http://" + addr + "/v1/webhooks/github/auth-project",
+    data=b'{"event":"auth-test"}',
+    method="POST",
+    headers=headers,
+)
+try:
+    resp = urllib.request.urlopen(req)
+    status = resp.status
+    body = resp.read().decode()
+except urllib.error.HTTPError as err:
+    status = err.code
+    body = err.read().decode()
+with open(output_path, "w", encoding="utf-8") as fh:
+    fh.write(str(status) + "\n")
+    fh.write(body + "\n")
+print(status)
+PY
+
+python3 - <<'PY' "$ADDR" correct-auth correct-token .epicsd-webhook-auth/correct-auth.txt
+import json
+import sys
+import urllib.error
+import urllib.request
+
+addr, delivery, token, output_path = sys.argv[1:5]
+headers = {
+    "Content-Type": "application/json",
+    "X-GitHub-Delivery": delivery,
+    "Authorization": "Bearer " + token,
+}
+req = urllib.request.Request(
+    "http://" + addr + "/v1/webhooks/github/auth-project",
+    data=b'{"event":"auth-test"}',
+    method="POST",
+    headers=headers,
+)
+try:
+    resp = urllib.request.urlopen(req)
+    status = resp.status
+    body = resp.read().decode()
+except urllib.error.HTTPError as err:
+    status = err.code
+    body = err.read().decode()
+with open(output_path, "w", encoding="utf-8") as fh:
+    fh.write(str(status) + "\n")
+    fh.write(body + "\n")
+print(status)
+PY
+
+ROUTE_ID=$(python3 -c 'import json; print(json.load(open(".epicsd-webhook-auth/route.json"))["id"])')
+for i in $(seq 1 60); do
+  epics --json run list --route "$ROUTE_ID" --limit 20 > .epicsd-webhook-auth/all-runs.json
+  cp "$EPICSD_HOME/epicsd.log" .epicsd-webhook-auth/epicsd.log
+  python3 - <<'PY'
+import json
+import sys
+
+runs = json.load(open(".epicsd-webhook-auth/all-runs.json", encoding="utf-8")) or []
+accepted = [run for run in runs if run.get("outcome") in {"queued", "running", "succeeded", "failed"}]
+sys.exit(0 if len(accepted) == 1 and accepted[0].get("outcome") == "succeeded" else 1)
+PY
+  if [ $? -eq 0 ]; then
+    break
+  fi
+  sleep 1
+done
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+def read_status(path):
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    return int(lines[0]), "\n".join(lines[1:])
+
+all_runs = json.load(open(".epicsd-webhook-auth/all-runs.json", encoding="utf-8")) or []
+accepted = [run for run in all_runs if run.get("outcome") in {"queued", "running", "succeeded", "failed"}]
+rejected = [run for run in all_runs if run.get("outcome") == "rejected"]
+route = json.load(open(".epicsd-webhook-auth/route.json", encoding="utf-8"))
+no_auth_status, no_auth_body = read_status(".epicsd-webhook-auth/no-auth.txt")
+wrong_auth_status, wrong_auth_body = read_status(".epicsd-webhook-auth/wrong-auth.txt")
+correct_auth_status, correct_auth_body = read_status(".epicsd-webhook-auth/correct-auth.txt")
+Path(".epicsd-webhook-auth/runs.json").write_text(json.dumps(accepted, indent=2) + "\n", encoding="utf-8")
+summary = {
+    "routeId": route["id"],
+    "noAuthStatus": no_auth_status,
+    "wrongAuthStatus": wrong_auth_status,
+    "correctAuthStatus": correct_auth_status,
+    "acceptedRuns": len(accepted),
+    "rejectedRuns": len(rejected),
+}
+Path(".epicsd-webhook-auth/auth-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+if no_auth_status != 401:
+    raise SystemExit(1)
+if wrong_auth_status != 401:
+    raise SystemExit(1)
+if correct_auth_status != 202:
+    raise SystemExit(1)
+if len(accepted) != 1 or accepted[0].get("outcome") != "succeeded":
+    raise SystemExit(1)
+if "queued" not in correct_auth_body and "runId" not in correct_auth_body:
+    raise SystemExit(1)
+PY
+
+cat .epicsd-webhook-auth/status.json
+cat .epicsd-webhook-auth/workspace.json
+cat .epicsd-webhook-auth/route.json
+cat .epicsd-webhook-auth/no-auth.txt
+cat .epicsd-webhook-auth/wrong-auth.txt
+cat .epicsd-webhook-auth/correct-auth.txt
+cat .epicsd-webhook-auth/runs.json
+cat .epicsd-webhook-auth/auth-summary.json
+`},
+					Env: map[string]string{
+						"EPICSD_HOME": "/tmp/epicsd-webhook-auth-home",
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"status": "ok"`, `"displayName": "webhook-auth-project"`, `"id": "webhook:github:auth-project"`, "401", "202", `"acceptedRuns": 1`, `"correctAuthStatus": 202`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/output/auth-success.txt", MustExist: true, Contains: []string{"AUTH OK"}},
+				{Path: "project/.epicsd-webhook-auth/route.json", MustExist: true, Contains: []string{`"type": "webhook"`, `"authMode": "bearer"`, `"selectedAdapter": "claude"`}},
+				{Path: "project/.epicsd-webhook-auth/no-auth.txt", MustExist: true, Contains: []string{"401", "invalid bearer token"}},
+				{Path: "project/.epicsd-webhook-auth/wrong-auth.txt", MustExist: true, Contains: []string{"401", "invalid bearer token"}},
+				{Path: "project/.epicsd-webhook-auth/correct-auth.txt", MustExist: true, Contains: []string{"202", `"queued":true`}},
+				{Path: "project/.epicsd-webhook-auth/runs.json", MustExist: true, Contains: []string{`"routeId": "webhook:github:auth-project"`, `"outcome": "succeeded"`}, NotContains: []string{`"outcome": "rejected"`}},
+				{Path: "project/.epicsd-webhook-auth/all-runs.json", MustExist: true, Contains: []string{`"failureReason": "auth_failed"`, `"outcome": "rejected"`, `"outcome": "succeeded"`}},
+				{Path: "project/.epicsd-webhook-auth/auth-summary.json", MustExist: true, Contains: []string{`"acceptedRuns": 1`, `"correctAuthStatus": 202`}},
+				{Path: "project/.epicsd-webhook-auth/epicsd.log", MustExist: true, Contains: []string{"route=webhook:github:auth-project", "adapter=claude"}},
+			},
+		},
+		{
 			Name:         "init-empty-workspace",
 			Description:  "Initialize an empty workspace into a minimal Epic package.",
 			Tags:         []string{"cli", "core"},

@@ -1,0 +1,7 @@
+{
+  "state_version": 1,
+  "status": "active",
+  "name": "Webhook Auth Epic",
+  "current_plan": "runtime/plans/001-auth-success.md",
+  "nextStep": "Create output/auth-success.txt containing exactly AUTH OK. If the file already exists with that exact content, leave it unchanged. Do not modify runtime state."
+}

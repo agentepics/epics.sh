@@ -1,0 +1,59 @@
+{
+  "state_version": 1,
+  "status": "active",
+  "name": "Cron State Progression Epic",
+  "phase": "step1",
+  "completed_steps": [],
+  "current_plan": "runtime/plans/001-three-step-stateful-loop.md",
+  "nextStep": "Read .claude/skills/cron-state-progression-epic/runtime/state/core.json and follow step_instructions for the current phase. Every write in this Epic must stay under .claude/skills/cron-state-progression-epic/. Do not create workspace-root runtime/ or output/ directories. Execute exactly one phase per run, then update the installed Epic state file using step_transitions.",
+  "step_instructions": {
+    "step1": {
+      "write_path": ".claude/skills/cron-state-progression-epic/output/step1.txt",
+      "content": "STEP 1 COMPLETE"
+    },
+    "step2": {
+      "read_paths": [
+        ".claude/skills/cron-state-progression-epic/output/step1.txt"
+      ],
+      "write_path": ".claude/skills/cron-state-progression-epic/output/step2.txt",
+      "content": "STEP 2 saw: STEP 1 COMPLETE"
+    },
+    "step3": {
+      "read_paths": [
+        ".claude/skills/cron-state-progression-epic/output/step1.txt",
+        ".claude/skills/cron-state-progression-epic/output/step2.txt"
+      ],
+      "write_path": ".claude/skills/cron-state-progression-epic/output/summary.txt",
+      "content": "SUMMARY uses STEP 1 COMPLETE and STEP 2 saw: STEP 1 COMPLETE"
+    }
+  },
+  "step_transitions": {
+    "step1": {
+      "phase": "step2",
+      "completed_steps": [
+        "step1"
+      ],
+      "status": "active",
+      "nextStep": "Current phase step2: read .claude/skills/cron-state-progression-epic/output/step1.txt and create .claude/skills/cron-state-progression-epic/output/step2.txt with the configured content, then advance to step3."
+    },
+    "step2": {
+      "phase": "step3",
+      "completed_steps": [
+        "step1",
+        "step2"
+      ],
+      "status": "active",
+      "nextStep": "Current phase step3: read .claude/skills/cron-state-progression-epic/output/step1.txt and .claude/skills/cron-state-progression-epic/output/step2.txt, create .claude/skills/cron-state-progression-epic/output/summary.txt with the configured content, then mark the Epic complete."
+    },
+    "step3": {
+      "phase": "done",
+      "completed_steps": [
+        "step1",
+        "step2",
+        "step3"
+      ],
+      "status": "complete",
+      "nextStep": "All steps are complete. Do nothing else."
+    }
+  }
+}

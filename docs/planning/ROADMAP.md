@@ -54,6 +54,8 @@ Key decisions:
 - public curated sample Epics live in a separate `agentepics/epics` repository
 - only hosts that satisfy the autonomy contract should be offered
 - runtime support is adapter-driven but should converge on one autonomy promise
+- any future `epicsd` should default to one shared local daemon per OS user,
+  not one daemon per project
 - Claude Code plugin packaging is an explicit product objective, not an optional
   afterthought
 
@@ -367,6 +369,15 @@ Current status:
 - `epics hooks fire <trigger>` is still pending
 - policy loading and diagnostics are still pending
 - runtime capability reporting per host is still pending
+
+Daemon direction:
+
+- a future Phase B `epicsd` should be a shared local daemon per OS user account
+- that daemon should coordinate many workspaces and installed Epics for the same
+  user
+- per-workspace and per-Epic isolation should be enforced inside daemon state,
+  not by running one daemon per project
+- Phase C daemon-backed adapters should target that same shared daemon model
 
 Exit criteria:
 
