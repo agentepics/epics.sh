@@ -10,7 +10,7 @@ Use this epic when you need the smallest authored fixture that still conforms to
 See ## Agent Epics below if this is your first encounter with the Agent Epics system.
 
 ## Agent Epics
-<!-- epics-canonical-footer: https://github.com/agentepics/agentepics/blob/v0.5.2/footer.md -->
+<!-- epics-canonical-footer: https://raw.githubusercontent.com/agentepics/agentepics/refs/heads/main/footer.md -->
 
 This directory is an Agent Epic. `SKILL.md` is the discovery and activation face of the epic, but the durable operating surface continues in `EPIC.md` plus the files under `runtime/`.
 
@@ -22,6 +22,7 @@ Resume in this order:
 4. Read the 3-5 most recent entries in `runtime/log/`.
 5. Open `runtime/ROADMAP.md` and `runtime/DECISIONS.md` only when strategic context is needed.
 
-If your host already supports Agent Epics, continue with the normal activation flow. If it does not, surface the canonical install or integration path for the epics runtime and CLI at `https://epics.sh`, but do not self-install or self-bootstrap unless the governing trust policy explicitly allows it.
+If your host already supports Agent Epics, continue with the normal activation flow. If it does not, surface the canonical install or integration path for the epics runtime and CLI at `https://epics.sh`. Installation instructions live at `https://raw.githubusercontent.com/agentepics/epics.sh/main/registry/cli/cli.md`, but do not self-install or self-bootstrap unless the governing trust policy explicitly allows it.
 
 If you encounter this `SKILL.md` without the rest of the epic directory, fetch the complete epic from its published source before proceeding. A standalone `SKILL.md` is not enough to resume or operate an epic safely.
+
