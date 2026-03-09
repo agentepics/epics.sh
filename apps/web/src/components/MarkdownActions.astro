@@ -1,0 +1,40 @@
+---
+const { mdUrl } = Astro.props as {
+	mdUrl: string;
+};
+---
+
+<div class="md-dropdown" data-md-actions>
+	<button class="copy-button md-dropdown-toggle" type="button">.MD <span class="dropdown-arrow">&#9662;</span></button>
+	<div class="md-dropdown-menu">
+		<button class="md-dropdown-item" type="button" data-copy-md-url={mdUrl}><span>Copy as .MD</span></button>
+		<a class="md-dropdown-item" href={mdUrl}>View as .MD</a>
+	</div>
+</div>
+
+<script is:inline>
+	(function () {
+		var groups = document.querySelectorAll('[data-md-actions]');
+		if (!groups.length) return;
+
+		groups.forEach(function (group) {
+			var btn = group.querySelector('[data-copy-md-url]');
+			if (!btn) return;
+
+			var mdUrl = btn.getAttribute('data-copy-md-url');
+			if (!mdUrl) return;
+
+			btn.addEventListener('click', function () {
+				var label = btn.querySelector('span');
+				fetch(mdUrl).then(function (r) { return r.text(); }).then(function (md) {
+					return navigator.clipboard.writeText(md).then(function () {
+						if (label) {
+							label.textContent = 'Copied!';
+							setTimeout(function () { label.textContent = 'Copy as .MD'; }, 1600);
+						}
+					});
+				}).catch(function (err) { console.error(err); });
+			});
+		});
+	})();
+</script>

@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import InstallBlock from '../../components/InstallBlock.astro';
+import MarkdownActions from '../../components/MarkdownActions.astro';
 import { getReleaseIndex } from '../../lib/cli';
 import { formatDate } from '../../lib/site';
 
@@ -13,13 +14,18 @@ const current = releases.releases[0];
 
 <BaseLayout title="epics CLI" description="Install the epics CLI, download platform builds, and read the changelog.">
 	<section>
-		<h1 class="page-title">The canonical control surface for Epics.</h1>
-		<p class="lede">
-			The website reflects the real CLI, not a separate web-only workflow. Install
-			the binary, then use <code>epics install</code>, <code>validate</code>,
-			<code>resume</code>, and host setup commands from the same model the directory
-			renders.
-		</p>
+		<div class="docs-article-header">
+			<div>
+				<h1 class="page-title">The canonical control surface for Epics.</h1>
+				<p class="lede">
+					The website reflects the real CLI, not a separate web-only workflow. Install
+					the binary, then use <code>epics install</code>, <code>validate</code>,
+					<code>resume</code>, and host setup commands from the same model the directory
+					renders.
+				</p>
+			</div>
+			<MarkdownActions mdUrl="/cli.md" />
+		</div>
 	</section>
 
 	<section id="install">
