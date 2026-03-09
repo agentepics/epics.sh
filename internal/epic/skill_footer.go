@@ -19,6 +19,8 @@ const canonicalSkillFooter = `## Agent Epics
 
 This directory is an Agent Epic. ` + "`SKILL.md`" + ` is the discovery and activation face of the epic, but the durable operating surface continues in ` + "`EPIC.md`" + ` plus the files under ` + "`runtime/`" + `.
 
+The paths below are relative to the epic folder itself. The agent must first locate that epic folder in one of the on-disk directories where its Agent Skills are installed.
+
 Resume in this order:
 
 1. Read ` + "`EPIC.md`" + `.
