@@ -1,6 +1,11 @@
 ---
 name: resume-epic
 description: Exercise resume-context generation for the CLI by providing a small but durable runtime state tree. Activate when testing epic resume behavior.
+metadata:
+  source:
+    repo: github.com/agentepics/epics.sh
+    path: examples/fixtures/resume-epic
+    ref: main
 ---
 
 # Resume Epic
@@ -26,5 +31,4 @@ Resume in this order:
 
 If your host already supports Agent Epics, continue with the normal activation flow. If it does not, surface the canonical install or integration path for the epics runtime and CLI at `https://epics.sh`. Installation instructions live at `https://raw.githubusercontent.com/agentepics/epics.sh/main/registry/cli/cli.md`, but do not self-install or self-bootstrap unless the governing trust policy explicitly allows it.
 
-If you encounter this `SKILL.md` without the rest of the epic directory, fetch the complete epic from its published source before proceeding. A standalone `SKILL.md` is not enough to resume or operate an epic safely.
-
+If you encounter this `SKILL.md` without the rest of the epic directory, first check whether it declares `metadata.source` in frontmatter. When present, hosts may use that published-source hint to locate the full epic. The hint may be either an absolute `http`/`https` URL string or an object with `repo`, `path`, and optional `ref`. Absence is still valid, and trust policy still governs any fetch or install behavior. A standalone `SKILL.md` is not enough to resume or operate an epic safely.

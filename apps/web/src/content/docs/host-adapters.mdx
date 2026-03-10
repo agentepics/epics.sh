@@ -30,6 +30,16 @@ host-native files or wrappers, but they should preserve it exactly, stay
 backward-compatible with footer-less `0.5.1` epics, and keep `EPIC.md` as the
 authoritative lifecycle source.
 
+When only `SKILL.md` is available, adapters may also consult optional
+`SKILL.md` frontmatter at `metadata.source` to locate the full published epic.
+Supported forms are:
+
+- an absolute `http` or `https` URL string
+- an object with `repo`, `path`, and optional `ref`
+
+Absence remains valid. Adapters must still respect trust policy before fetching
+or installing anything based on that hint.
+
 ## Supported hosts
 
 | Host | Strongest surfaces | Main constraint |

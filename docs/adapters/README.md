@@ -75,10 +75,16 @@ Cross-host adapter work for `0.5.2` should follow these rules:
 - discovery still starts from `SKILL.md`
 - the standardized `## Agent Epics` footer is portable metadata, not a
   replacement for the operational body
+- optional `SKILL.md` frontmatter at `metadata.source` may help a host recover
+  the full epic when it only sees a standalone `SKILL.md`
+- supported `metadata.source` forms are an absolute `http`/`https` URL string
+  or an object with `repo`, `path`, and optional `ref`
 - adapters may consume that footer when generating host-native setup, but they
   should preserve it exactly
 - `EPIC.md`, `runtime/`, `hooks/`, `cron.d/`, and `policy.yml` remain the
   canonical epic operating surface
 - host-private session IDs, locks, and runtime bookkeeping must never be stored
   in the footer
+- trust policy still governs any fetch or install behavior based on
+  `metadata.source`
 - legacy footer-less epics must keep working during migration
