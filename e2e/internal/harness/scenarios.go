@@ -1187,6 +1187,173 @@ cat .epicsd-webhook-auth/auth-summary.json
 			},
 		},
 		{
+			Name:         "claude-live-session-epic-stateful-turns",
+			Description:  "Keep one interactive Claude Code process alive across multiple turns, use it to advance an installed Epic step by step, and prove cross-turn memory without harness-side prompt replay.",
+			Tags:         []string{"claude", "live", "session", "stateful"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/live-session-epic", To: "fixtures/live-session-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-live-session-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/live-session-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Live Session Epic for claude into .claude/skills/live-session-epic"},
+				},
+				{
+					Name:           "validate-installed-live-session-epic",
+					Workdir:        "project",
+					Args:           []string{"validate", ".claude/skills/live-session-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Live Session Epic is valid."},
+				},
+				{
+					Name:    "run-live-session",
+					Workdir: "project",
+					LiveSession: &LiveSessionSpec{
+						ArtifactDir: ".claude-live-session",
+						Turns: []LiveSessionTurn{
+							{
+								Name:     "turn1",
+								Prompt:   "Inspect the installed Epic live-session-epic. Run epics resume live-session-epic, then do only the current next step. Remember this session nonce for later turns but do not write it to any file: SESSION-NONCE-7319. When complete, reply with the uppercase token for turn1_ok followed by the remembered nonce.",
+								Expected: "TURN1_OK SESSION-NONCE-7319",
+							},
+							{
+								Name:     "turn2",
+								Prompt:   "Continue live-session-epic with only its next step. Use the same remembered session nonce in your reply, but do not write the nonce to disk. When complete, reply with the uppercase token for turn2_ok followed by that same nonce.",
+								Expected: "TURN2_OK SESSION-NONCE-7319",
+							},
+							{
+								Name:     "turn3",
+								Prompt:   "Finish live-session-epic. Use the same remembered session nonce and reply with the uppercase token for turn3_ok, then that nonce, then the word DONE.",
+								Expected: "TURN3_OK SESSION-NONCE-7319 DONE",
+							},
+						},
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"turnCount": 3`, `"matched": true`, `TURN1_OK SESSION-NONCE-7319`, `TURN2_OK SESSION-NONCE-7319`, `TURN3_OK SESSION-NONCE-7319 DONE`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/live-session-epic/output/step1.txt", MustExist: true, Contains: []string{"STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-7319"}},
+				{Path: "project/.claude/skills/live-session-epic/output/step2.txt", MustExist: true, Contains: []string{"STEP 2 saw: STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-7319"}},
+				{Path: "project/.claude/skills/live-session-epic/output/summary.txt", MustExist: true, Contains: []string{"STEP 1 READY", "STEP 2 saw: STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-7319"}},
+				{Path: "project/.claude/skills/live-session-epic/runtime/state/core.json", MustExist: true, Contains: []string{`"phase": "done"`, `"status": "complete"`, `"completed_steps": [`}, NotContains: []string{"SESSION-NONCE-7319"}},
+				{Path: "project/.claude-live-session/session-summary.json", MustExist: true, Contains: []string{`"turnCount": 3`, `TURN1_OK SESSION-NONCE-7319`, `TURN3_OK SESSION-NONCE-7319 DONE`, `"matched": true`}},
+				{Path: "project/.claude-live-session/bootstrap.txt", MustExist: true, Contains: []string{"PREPARED"}},
+				{Path: "project/.claude-live-session/transcript.txt", MustExist: true, Contains: []string{"TURN1_OKSESSION-NONCE-7319", "TURN2_OKSESSION-NONCE-7319", "TURN3_OK SESSION-NONCE-7319 DONE"}},
+			},
+		},
+		{
+			Name:         "claude-live-session-epic-single-step-boundary",
+			Description:  "Use one persistent Claude session for a single turn and prove it does not overrun beyond the current Epic step.",
+			Tags:         []string{"claude", "live", "session", "boundary"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/live-session-epic", To: "fixtures/live-session-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-live-session-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/live-session-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Live Session Epic for claude into .claude/skills/live-session-epic"},
+				},
+				{
+					Name:    "run-single-boundary-turn",
+					Workdir: "project",
+					LiveSession: &LiveSessionSpec{
+						ArtifactDir: ".claude-live-session-boundary",
+						Turns: []LiveSessionTurn{
+							{
+								Name:     "boundary-turn",
+								Prompt:   "Inspect the installed Epic live-session-epic. Run epics resume live-session-epic, then do only the current next step and stop. Remember this session nonce for later but do not write it to any file: SESSION-NONCE-2041. When complete, reply with the uppercase token for boundary_ok followed by the remembered nonce.",
+								Expected: "BOUNDARY_OK SESSION-NONCE-2041",
+							},
+						},
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"turnCount": 1`, `BOUNDARY_OK SESSION-NONCE-2041`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/live-session-epic/output/step1.txt", MustExist: true, Contains: []string{"STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-2041"}},
+				{Path: "project/.claude/skills/live-session-epic/output/step2.txt", MustExist: false},
+				{Path: "project/.claude/skills/live-session-epic/output/summary.txt", MustExist: false},
+				{Path: "project/.claude/skills/live-session-epic/runtime/state/core.json", MustExist: true, Contains: []string{`"phase": "step2"`, `"status": "active"`}, NotContains: []string{"SESSION-NONCE-2041"}},
+				{Path: "project/.claude-live-session-boundary/session-summary.json", MustExist: true, Contains: []string{`"turnCount": 1`, `BOUNDARY_OK SESSION-NONCE-2041`, `"matched": true`}},
+				{Path: "project/.claude-live-session-boundary/transcript.txt", MustExist: true, Contains: []string{"BOUNDARY_OKSESSION-NONCE-2041"}},
+			},
+		},
+		{
+			Name:         "claude-live-session-epic-steered-resume",
+			Description:  "Keep one Claude session alive across an initial steer-only turn and later resume the Epic workflow to completion.",
+			Tags:         []string{"claude", "live", "session", "steer", "stateful"},
+			ImageProfile: "claude",
+			RequiredEnv:  []string{"ANTHROPIC_API_KEY"},
+			Copies: []CopySpec{
+				{From: "e2e/fixtures/claude-web-project", To: "project"},
+				{From: "examples/fixtures/live-session-epic", To: "fixtures/live-session-epic"},
+			},
+			Steps: []Step{
+				{
+					Name:           "install-live-session-epic",
+					Workdir:        "project",
+					Args:           []string{"install", "--host", "claude", "../fixtures/live-session-epic"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{"Installed Live Session Epic for claude into .claude/skills/live-session-epic"},
+				},
+				{
+					Name:    "run-steered-session",
+					Workdir: "project",
+					LiveSession: &LiveSessionSpec{
+						ArtifactDir: ".claude-live-session-steer",
+						Turns: []LiveSessionTurn{
+							{
+								Name:     "steer-only",
+								Prompt:   "Inspect the installed Epic live-session-epic and remember this session nonce for later turns but do not modify any files yet: SESSION-NONCE-8851. Reply with the uppercase token for steer_ready followed by the remembered nonce.",
+								Expected: "STEER_READY SESSION-NONCE-8851",
+							},
+							{
+								Name:     "step1",
+								Prompt:   "Now do only the current next step for live-session-epic. Use the same remembered session nonce in your reply and do not write it to disk. Reply with the uppercase token for steer_step1 followed by the remembered nonce.",
+								Expected: "STEER_STEP1 SESSION-NONCE-8851",
+							},
+							{
+								Name:     "step2",
+								Prompt:   "Continue live-session-epic with only the next step. Use the same remembered session nonce in your reply and do not write it to disk. Reply with the uppercase token for steer_step2 followed by the remembered nonce.",
+								Expected: "STEER_STEP2 SESSION-NONCE-8851",
+							},
+							{
+								Name:     "finish",
+								Prompt:   "Finish live-session-epic. Use the same remembered session nonce in your reply and do not write it to disk. Reply with the uppercase token for steer_done followed by the remembered nonce.",
+								Expected: "STEER_DONE SESSION-NONCE-8851",
+							},
+						},
+					},
+					PassEnv:        []string{"ANTHROPIC_API_KEY"},
+					ExpectExitCode: 0,
+					StdoutContains: []string{`"turnCount": 4`, `STEER_READY SESSION-NONCE-8851`, `STEER_STEP1 SESSION-NONCE-8851`, `STEER_STEP2 SESSION-NONCE-8851`, `STEER_DONE SESSION-NONCE-8851`},
+				},
+			},
+			Files: []FileAssertion{
+				{Path: "project/.claude/skills/live-session-epic/output/step1.txt", MustExist: true, Contains: []string{"STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-8851"}},
+				{Path: "project/.claude/skills/live-session-epic/output/step2.txt", MustExist: true, Contains: []string{"STEP 2 saw: STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-8851"}},
+				{Path: "project/.claude/skills/live-session-epic/output/summary.txt", MustExist: true, Contains: []string{"STEP 1 READY", "STEP 2 saw: STEP 1 READY"}, NotContains: []string{"SESSION-NONCE-8851"}},
+				{Path: "project/.claude/skills/live-session-epic/runtime/state/core.json", MustExist: true, Contains: []string{`"phase": "done"`, `"status": "complete"`}, NotContains: []string{"SESSION-NONCE-8851"}},
+				{Path: "project/.claude-live-session-steer/session-summary.json", MustExist: true, Contains: []string{`"turnCount": 4`, `STEER_READY SESSION-NONCE-8851`, `STEER_STEP1 SESSION-NONCE-8851`, `STEER_STEP2 SESSION-NONCE-8851`, `STEER_DONE SESSION-NONCE-8851`, `"matched": true`}},
+			},
+		},
+		{
 			Name:         "init-empty-workspace",
 			Description:  "Initialize an empty workspace into a minimal Epic package.",
 			Tags:         []string{"cli", "core"},

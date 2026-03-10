@@ -45,10 +45,18 @@ The live Claude lane now includes daemon-backed scenarios as well:
 - `claude-epicsd-cron-overlap-skip`
 - `claude-epicsd-webhook-auth-rejection`
 
+The live Claude lane also now includes persistent-session scenarios that keep one
+interactive Claude Code process alive across multiple turns:
+
+- `claude-live-session-epic-stateful-turns`
+- `claude-live-session-epic-single-step-boundary`
+- `claude-live-session-epic-steered-resume`
+
 ## Live Chat
 
 `chat` is a manual live-evaluation workflow built on the same Claude Docker
-image used by the live scenarios. It:
+image used by the live scenarios. It is still a scripted print-mode workflow,
+not a persistent interactive Claude session. It:
 
 - builds the Claude E2E image
 - starts a detached container with `claude`, `epics`, and `epicsd` installed

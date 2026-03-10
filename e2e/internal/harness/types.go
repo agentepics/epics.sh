@@ -11,6 +11,7 @@ type Step struct {
 	Args                     []string
 	Workdir                  string
 	Stdin                    string
+	LiveSession              *LiveSessionSpec
 	Env                      map[string]string
 	PassEnv                  []string
 	ExpectNoWorkspaceChanges bool
@@ -29,6 +30,19 @@ type FileAssertion struct {
 	Contains    []string
 	NotContains []string
 	Equals      string
+}
+
+type LiveSessionSpec struct {
+	ArtifactDir     string            `json:"artifactDir,omitempty"`
+	BootstrapPrompt string            `json:"bootstrapPrompt,omitempty"`
+	BootstrapExpect string            `json:"bootstrapExpect,omitempty"`
+	Turns           []LiveSessionTurn `json:"turns"`
+}
+
+type LiveSessionTurn struct {
+	Name     string `json:"name"`
+	Prompt   string `json:"prompt"`
+	Expected string `json:"expected"`
 }
 
 type Scenario struct {

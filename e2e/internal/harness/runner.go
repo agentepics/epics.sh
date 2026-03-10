@@ -312,6 +312,9 @@ func prepareWorkspace(repoRoot, workspaceDir string, scenario Scenario, log *ope
 }
 
 func runStep(imageTag, imageProfile, workspaceDir, scenarioDir string, index int, step Step, log *operationLogger) StepResult {
+	if step.LiveSession != nil {
+		return runLiveSessionStep(imageTag, imageProfile, workspaceDir, scenarioDir, index, step, log)
+	}
 	program := step.Program
 	if program == "" {
 		program = "epics"

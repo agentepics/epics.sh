@@ -1,0 +1,59 @@
+{
+  "state_version": 1,
+  "status": "active",
+  "name": "Live Session Epic",
+  "phase": "step1",
+  "completed_steps": [],
+  "current_plan": "runtime/plans/001-live-session.md",
+  "nextStep": "Read .claude/skills/live-session-epic/runtime/state/core.json and follow step_instructions for the current phase. All files for this Epic must stay under .claude/skills/live-session-epic/. Do not create workspace-root runtime/ or output/ directories. Execute exactly one phase per turn, then update the installed Epic state file using step_transitions.",
+  "step_instructions": {
+    "step1": {
+      "write_path": ".claude/skills/live-session-epic/output/step1.txt",
+      "content": "STEP 1 READY"
+    },
+    "step2": {
+      "read_paths": [
+        ".claude/skills/live-session-epic/output/step1.txt"
+      ],
+      "write_path": ".claude/skills/live-session-epic/output/step2.txt",
+      "content": "STEP 2 saw: STEP 1 READY"
+    },
+    "step3": {
+      "read_paths": [
+        ".claude/skills/live-session-epic/output/step1.txt",
+        ".claude/skills/live-session-epic/output/step2.txt"
+      ],
+      "write_path": ".claude/skills/live-session-epic/output/summary.txt",
+      "content": "SUMMARY combines STEP 1 READY and STEP 2 saw: STEP 1 READY"
+    }
+  },
+  "step_transitions": {
+    "step1": {
+      "phase": "step2",
+      "completed_steps": [
+        "step1"
+      ],
+      "status": "active",
+      "nextStep": "Current phase step2: read .claude/skills/live-session-epic/output/step1.txt and create .claude/skills/live-session-epic/output/step2.txt with the configured content, then advance to step3."
+    },
+    "step2": {
+      "phase": "step3",
+      "completed_steps": [
+        "step1",
+        "step2"
+      ],
+      "status": "active",
+      "nextStep": "Current phase step3: read .claude/skills/live-session-epic/output/step1.txt and .claude/skills/live-session-epic/output/step2.txt, create .claude/skills/live-session-epic/output/summary.txt with the configured content, then mark the Epic complete."
+    },
+    "step3": {
+      "phase": "done",
+      "completed_steps": [
+        "step1",
+        "step2",
+        "step3"
+      ],
+      "status": "complete",
+      "nextStep": "All steps are complete. Do nothing else."
+    }
+  }
+}
