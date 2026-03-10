@@ -441,6 +441,16 @@ func validateSkillMarkdown(root, path, relPath, specVersion string) []Diagnostic
 			Message: relPath + " must include the canonical Agent Epics footer marker for spec_version 0.5.2",
 		})
 	}
+	if strings.Contains(content, CanonicalSkillFooterMarker) &&
+		strings.Contains(content, CanonicalSkillFooterHeading) &&
+		!skillFooterMatchesCanonical(content) {
+		diagnostics = append(diagnostics, Diagnostic{
+			Level:   "error",
+			Code:    "stale_agent_epics_footer_body",
+			Path:    relPath,
+			Message: relPath + " has a non-canonical Agent Epics footer body; run `epics upgrade-skill-footer` to refresh it",
+		})
+	}
 
 	preface := content
 	if headingIndex := footerHeadingIndex(preface); headingIndex >= 0 {
@@ -454,7 +464,7 @@ func validateSkillMarkdown(root, path, relPath, specVersion string) []Diagnostic
 			Message: relPath + " should mention that durable operating context lives in EPIC.md",
 		})
 	}
-	if !strings.Contains(preface, "See ## Agent Epics below") {
+	if !strings.Contains(preface, "See the **Agent Epics** section below") {
 		diagnostics = append(diagnostics, Diagnostic{
 			Level:   "warning",
 			Code:    "missing_agent_epics_pointer",

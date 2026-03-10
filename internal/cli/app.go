@@ -127,7 +127,7 @@ description: Describe what this epic does, when to activate it, and that durable
 
 Use this epic when you need a durable, resumable workflow for this directory. `+"`EPIC.md`"+` is the authoritative source for lifecycle, state model, guardrails, and resume behavior.
 
-See ## Agent Epics below if this is your first encounter with the Agent Epics system.
+See the **Agent Epics** section below if this is your first encounter with the Agent Epics system.
 
 ## Operating notes
 
